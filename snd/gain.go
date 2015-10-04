@@ -6,9 +6,9 @@ type Gain struct {
 	mult float64
 }
 
-func NewGain(mult float64) *Gain {
+func NewGain(mult float64, in Sound) *Gain {
 	return &Gain{
-		snd:  newSnd(),
+		snd:  newSnd(in),
 		mult: mult,
 	}
 }

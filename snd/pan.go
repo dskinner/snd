@@ -44,9 +44,7 @@ type Pan struct {
 }
 
 func NewPan(amt float64, in Sound) *Pan {
-	p := &Pan{newStereosnd(), amt}
-	p.in = in
-	return p
+	return &Pan{newStereosnd(in), amt}
 }
 
 // SetAmount takes an input pans it across two outputs by

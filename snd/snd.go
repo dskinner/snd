@@ -91,11 +91,12 @@ type snd struct {
 	out []float64
 }
 
-func newSnd() *snd {
+func newSnd(in Sound) *snd {
 	return &snd{
 		sr:  DefaultSampleRate,
 		amp: 1,
 		mod: 1,
+		in:  in,
 		out: make([]float64, DefaultSampleSize),
 	}
 }
@@ -130,10 +131,11 @@ type stereosnd struct {
 	out  []float64
 }
 
-func newStereosnd() *stereosnd {
+func newStereosnd(in Sound) *stereosnd {
 	return &stereosnd{
-		l:   newSnd(),
-		r:   newSnd(),
+		l:   newSnd(nil),
+		r:   newSnd(nil),
+		in:  in,
 		out: make([]float64, DefaultSampleSize*2),
 	}
 }

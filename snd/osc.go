@@ -13,7 +13,7 @@ type Osc struct {
 
 func NewOsc(h Harm, fr float64) *Osc {
 	return &Osc{
-		snd: newSnd(),
+		snd: newSnd(nil),
 		h:   h,
 		fr:  fr,
 	}

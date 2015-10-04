@@ -19,6 +19,8 @@ var (
 	sz size.Event
 
 	oal = snd.NewOpenAL()
+
+	wf *snd.Waveform
 )
 
 func onStart(ctx gl.Context) {
@@ -27,15 +29,22 @@ func onStart(ctx gl.Context) {
 	}
 
 	harm := snd.Sine()
-	osc0 := snd.NewOsc(harm, 523.251)
-	osc1 := snd.NewOsc(harm, 659.255)
-	osc2 := snd.NewOsc(harm, 783.991)
-	mix := snd.NewMixer(osc0, osc1, osc2)
-	pan := snd.NewPan(0, mix)
+	// osc0 := snd.NewOsc(harm, 523.251)
+	// osc1 := snd.NewOsc(harm, 659.255)
+	// osc2 := snd.NewOsc(harm, 783.991)
+	// mix := snd.NewMixer(osc0, osc1, osc2)
 
+	mix := snd.NewMixer(snd.NewOsc(harm, 220))
+
+	pan := snd.NewPan(0, mix)
 	oal.SetInput(pan)
-	// oal.SetInput(snd.Slice{osc0, osc1, osc2, mix, pan})
 	oal.Play()
+
+	var err error
+	wf, err = snd.NewWaveForm(mix, ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func onStop() {
@@ -49,6 +58,8 @@ func onTouch(ev touch.Event) {
 func onPaint(ctx gl.Context) {
 	ctx.ClearColor(0, 0, 0, 1)
 	ctx.Clear(gl.COLOR_BUFFER_BIT)
+
+	wf.Paint(ctx, sz)
 }
 
 func main() {
