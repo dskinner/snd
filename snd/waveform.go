@@ -15,18 +15,29 @@ import (
 // go mobile gl to build snd (increasing complexity of portability)
 // so move this to a subpkg requiring explicit importing.
 
+const epsilon = 0.0001
+
+func equals(a, b float64) bool {
+	return (a-b) < epsilon && (b-a) < epsilon
+}
+
 type Waveform struct {
 	program  gl.Program
 	position gl.Attrib
 	buf      gl.Buffer
 
 	in *Mixer
+
+	align    bool
+	alignamp float64
+	aligned  []float64
 }
 
 // TODO just how many samples do we want/need to display something useful?
 func NewWaveForm(in *Mixer, ctx gl.Context) (*Waveform, error) {
 	wf := &Waveform{
-		in: in,
+		in:      in,
+		aligned: make([]float64, DefaultSampleSize*mixerbuf),
 	}
 
 	var err error
@@ -38,6 +49,11 @@ func NewWaveForm(in *Mixer, ctx gl.Context) (*Waveform, error) {
 	wf.buf = ctx.CreateBuffer()
 	wf.position = ctx.GetAttribLocation(wf.program, "position")
 	return wf, nil
+}
+
+func (wf *Waveform) Align(amp float64) {
+	wf.align = true
+	wf.alignamp = amp
 }
 
 // TODO need to really consider just how a Waveform will interact with underlying data.
@@ -56,11 +72,28 @@ func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
 	var (
 		xstep float32 = 1 / float32(DefaultSampleSize*mixerbuf)
 		xpos  float32 = -0.5
-
-		verts = make([]float32, DefaultSampleSize*mixerbuf*3)
 	)
 
-	for i, x := range wf.in.Samples() {
+	samples := wf.in.Samples()
+
+	if wf.align {
+		// naive equivalent-time sampling
+		var mt int
+		for i, x := range samples {
+			if equals(x, wf.alignamp) {
+				mt = i
+				break
+			}
+		}
+		for i, x := range samples[mt:] {
+			wf.aligned[i] = x
+		}
+		samples = wf.aligned
+	}
+
+	//
+	verts := make([]float32, len(samples)*3)
+	for i, x := range samples {
 		verts[i*3] = float32(xpos)
 		verts[i*3+1] = float32(x / 2)
 		verts[i*3+2] = 0
@@ -69,12 +102,13 @@ func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
 	}
 	data := f32.Bytes(binary.LittleEndian, verts...)
 	//
+	ctx.LineWidth(4)
 	ctx.UseProgram(wf.program)
 	ctx.BindBuffer(gl.ARRAY_BUFFER, wf.buf)
 	ctx.EnableVertexAttribArray(wf.position)
 	ctx.VertexAttribPointer(wf.position, 3, gl.FLOAT, false, 0, 0)
 	ctx.BufferData(gl.ARRAY_BUFFER, data, gl.STREAM_DRAW)
-	ctx.DrawArrays(gl.LINE_STRIP, 0, DefaultSampleSize*mixerbuf)
+	ctx.DrawArrays(gl.LINE_STRIP, 0, len(samples))
 	ctx.DisableVertexAttribArray(wf.position)
 }
 

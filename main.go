@@ -34,7 +34,21 @@ func onStart(ctx gl.Context) {
 	// osc2 := snd.NewOsc(harm, 783.991)
 	// mix := snd.NewMixer(osc0, osc1, osc2)
 
-	mix := snd.NewMixer(snd.NewOsc(harm, 220))
+	osc := snd.NewOsc(harm, 440)
+	// go func() {
+	// forward := true
+	// for {
+	// time.Sleep(100 * time.Millisecond)
+	// if forward {
+	// osc.SetFreq(osc.Freq() + 1)
+	// forward = osc.Freq() < 880
+	// } else {
+	// osc.SetFreq(osc.Freq() - 1)
+	// forward = osc.Freq() > 440
+	// }
+	// }
+	// }()
+	mix := snd.NewMixer(osc)
 
 	pan := snd.NewPan(0, mix)
 	oal.SetInput(pan)
@@ -45,6 +59,7 @@ func onStart(ctx gl.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	wf.Align(-1)
 }
 
 func onStop() {

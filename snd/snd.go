@@ -13,6 +13,7 @@ package snd // import "dasa.cc/piano/snd"
 // https://en.wikipedia.org/wiki/Sampling_(signal_processing)
 // http://public.wsu.edu/~jkrug/MUS364/audio/Waveforms.htm
 // https://en.wikipedia.org/wiki/Window_function#Hamming_window
+// http://uenics.evansville.edu/~amr63/equipment/scope/oscilloscope.html
 
 /* http://dollopofdesi.blogspot.com/2011/09/interleaving-audio-files-to-different.html
 

@@ -75,14 +75,13 @@ func SquareFunc(h Harm, num int, ph float64) {
 	h[len(h)-1] = h[0]
 }
 
-func Square() Harm {
+func Square(num int) Harm {
 	var h Harm
-	h.Make(1, 0, SquareFunc)
+	h.Make(num, 0, SquareFunc)
 	return h
 }
 
-// TODO triangle
-// TODO seems like triangle is pulse ??? but its not ???
+// TODO Triangle
 
 func SawtoothFunc(h Harm, num int, ph float64) {
 	var (
@@ -109,9 +108,9 @@ func SawtoothFunc(h Harm, num int, ph float64) {
 	h[len(h)-1] = h[0]
 }
 
-func Sawtooth() Harm {
+func Sawtooth(num int) Harm {
 	var h Harm
-	h.Make(1, 0, SawtoothFunc)
+	h.Make(num, 0, SawtoothFunc)
 	return h
 }
 
@@ -142,8 +141,8 @@ func PulseFunc(h Harm, num int, ph float64) {
 	h[len(h)-1] = h[0]
 }
 
-func Pulse() Harm {
+func Pulse(num int) Harm {
 	var h Harm
-	h.Make(1, 0, PulseFunc)
+	h.Make(num, 0, PulseFunc)
 	return h
 }

@@ -73,6 +73,8 @@ func (oal *OpenAL) CloseDevice() {
 
 func (oal *OpenAL) prepare() {
 	//
+	// time.Sleep(500 * time.Millisecond)
+
 	oal.input.Prepare()
 
 	// TODO don't just assume stereo sound
@@ -127,8 +129,7 @@ func (oal *OpenAL) Play() {
 					log.Printf("snd: unknown error [err=%v]\n", code)
 				}
 
-				// sl := oal.input.(Slice)
-				// pan := sl[len(sl)-1].(*Pan)
+				// pan := oal.input.(*Pan)
 				// if forward {
 				// pan.amt += 0.01
 				// forward = pan.amt < 1

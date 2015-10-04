@@ -2,7 +2,7 @@ package snd
 
 import "sync"
 
-const mixerbuf = 2
+const mixerbuf = 4
 
 // TODO should mixer be stereo out?
 type Mixer struct {
@@ -16,11 +16,15 @@ type Mixer struct {
 }
 
 func NewMixer(ins ...Sound) *Mixer {
-	return &Mixer{
+	m := &Mixer{
 		ins:   ins,
 		out:   make([]float64, DefaultSampleSize),
 		sampl: make([]float64, DefaultSampleSize*mixerbuf),
 	}
+	for i := range m.tmp {
+		m.tmp[i] = make([]float64, DefaultSampleSize)
+	}
+	return m
 }
 
 func (m *Mixer) Append(s Sound) {
@@ -48,11 +52,14 @@ func (m *Mixer) Prepare() {
 	}
 
 	// TODO for waveform
-	i := 0
-	for ; i+1 < len(m.tmp); i++ {
+	buf := m.tmp[0]
+	for i := 0; i+1 < len(m.tmp); i++ {
 		m.tmp[i] = m.tmp[i+1]
 	}
-	m.tmp[i] = m.out
+	for i, x := range m.out {
+		buf[i] = x
+	}
+	m.tmp[len(m.tmp)-1] = buf
 }
 
 func (m *Mixer) Samples() []float64 {
