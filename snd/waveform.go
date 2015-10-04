@@ -78,6 +78,7 @@ func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
 
 	if wf.align {
 		// naive equivalent-time sampling
+		// TODO if audio and graphics were disjoint, a proper equiv-time smpl might be all we really need?
 		var mt int
 		for i, x := range samples {
 			if equals(x, wf.alignamp) {
