@@ -24,6 +24,7 @@ func equals(a, b float64) bool {
 type Waveform struct {
 	program  gl.Program
 	position gl.Attrib
+	color    gl.Uniform
 	buf      gl.Buffer
 
 	in *Mixer
@@ -48,6 +49,7 @@ func NewWaveForm(in *Mixer, ctx gl.Context) (*Waveform, error) {
 
 	wf.buf = ctx.CreateBuffer()
 	wf.position = ctx.GetAttribLocation(wf.program, "position")
+	wf.color = ctx.GetUniformLocation(wf.program, "color")
 	return wf, nil
 }
 
@@ -104,29 +106,30 @@ func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
 	data := f32.Bytes(binary.LittleEndian, verts...)
 	//
 	ctx.LineWidth(4)
+
 	ctx.UseProgram(wf.program)
+
+	ctx.Uniform4f(wf.color, 1, 1, 1, 1)
+
 	ctx.BindBuffer(gl.ARRAY_BUFFER, wf.buf)
 	ctx.EnableVertexAttribArray(wf.position)
 	ctx.VertexAttribPointer(wf.position, 3, gl.FLOAT, false, 0, 0)
 	ctx.BufferData(gl.ARRAY_BUFFER, data, gl.STREAM_DRAW)
+
 	ctx.DrawArrays(gl.LINE_STRIP, 0, len(samples))
+
 	ctx.DisableVertexAttribArray(wf.position)
 }
 
 const vertexShader = `#version 100
-//uniform vec2 offset;
-
 attribute vec4 position;
 void main() {
-        // offset comes in with x/y values between 0 and 1.
-        // position bounds are -1 to 1.
-        // vec4 offset4 = vec4(2.0*offset.x-1.0, 1.0-2.0*offset.y, 0, 0);
-        gl_Position = position; // + offset4;
+  gl_Position = position;
 }`
 
 const fragmentShader = `#version 100
 precision mediump float;
 uniform vec4 color;
 void main() {
-        gl_FragColor = vec4(1, 1, 1, 1);
+  gl_FragColor = color;
 }`

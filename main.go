@@ -20,10 +20,17 @@ var (
 
 	oal = snd.NewOpenAL()
 
-	wf *snd.Waveform
+	osc *snd.Osc
+	wf  *snd.Waveform
 )
 
 func onStart(ctx gl.Context) {
+	ctx.Enable(gl.DEPTH_TEST)
+	ctx.Enable(gl.BLEND)
+	ctx.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+	// ctx.SampleCoverage(0.25, false)
+	// ctx.Enable(gl.SAMPLE_COVERAGE)
+
 	if err := oal.OpenDevice(buffers); err != nil {
 		log.Fatal(err)
 	}
@@ -34,20 +41,7 @@ func onStart(ctx gl.Context) {
 	// osc2 := snd.NewOsc(harm, 783.991)
 	// mix := snd.NewMixer(osc0, osc1, osc2)
 
-	osc := snd.NewOsc(harm, 440)
-	// go func() {
-	// forward := true
-	// for {
-	// time.Sleep(100 * time.Millisecond)
-	// if forward {
-	// osc.SetFreq(osc.Freq() + 1)
-	// forward = osc.Freq() < 880
-	// } else {
-	// osc.SetFreq(osc.Freq() - 1)
-	// forward = osc.Freq() > 440
-	// }
-	// }
-	// }()
+	osc = snd.NewOsc(harm, 440)
 	mix := snd.NewMixer(osc)
 
 	pan := snd.NewPan(0, mix)
@@ -66,13 +60,29 @@ func onStop() {
 	oal.CloseDevice()
 }
 
+var lastY float32
+
 func onTouch(ev touch.Event) {
-	log.Printf("touch.Event: %#v\n", ev)
+	switch ev.Type {
+	case touch.TypeBegin:
+		lastY = ev.Y
+	case touch.TypeMove:
+		dt := (ev.Y - lastY) / 10
+		freq := osc.Freq() - float64(dt)
+		if freq > 880 {
+			freq = 880
+		}
+		if freq < 440 {
+			freq = 440
+		}
+		osc.SetFreq(freq)
+	default:
+	}
 }
 
 func onPaint(ctx gl.Context) {
 	ctx.ClearColor(0, 0, 0, 1)
-	ctx.Clear(gl.COLOR_BUFFER_BIT)
+	ctx.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 	wf.Paint(ctx, sz)
 }

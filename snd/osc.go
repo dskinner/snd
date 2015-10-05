@@ -34,11 +34,14 @@ func (osc *Osc) Prepare() {
 		inc float64
 		l   float64 = float64(len(osc.h))
 		f   float64 = l / osc.snd.sr
+
+		// allows changes to underlying variable during prepare
+		fr = osc.fr
 	)
 
 	for i := range osc.snd.out {
 		osc.snd.out[i] = osc.snd.amp * osc.h[int(osc.idx)]
-		inc = osc.fr * f
+		inc = fr * f
 		osc.idx += inc
 
 		for osc.idx >= l {
