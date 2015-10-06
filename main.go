@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"dasa.cc/piano/snd"
 
@@ -36,24 +37,30 @@ func onStart(ctx gl.Context) {
 	}
 
 	harm := snd.Sine()
+
 	// osc0 := snd.NewOsc(harm, 523.251)
 	// osc1 := snd.NewOsc(harm, 659.255)
 	// osc2 := snd.NewOsc(harm, 783.991)
 	// mix := snd.NewMixer(osc0, osc1, osc2)
 
 	osc = snd.NewOsc(harm, 440)
-	mix := snd.NewMixer(osc)
+	adsr := snd.NewADSR(200*time.Millisecond, 50*time.Millisecond, 350*time.Millisecond, time.Second, 0.5, 1, osc)
+	// go func() {
+	// time.Sleep(2 * time.Second)
+	// adsr.Release()
+	// }()
+	mix := snd.NewMixer(adsr)
 
 	pan := snd.NewPan(0, mix)
 	oal.SetInput(pan)
 	oal.Play()
 
 	var err error
-	wf, err = snd.NewWaveForm(mix, ctx)
+	wf, err = snd.NewWaveform(mix, ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	wf.Align(-1)
+	// wf.Align(-1)
 }
 
 func onStop() {
@@ -67,13 +74,14 @@ func onTouch(ev touch.Event) {
 	case touch.TypeBegin:
 		lastY = ev.Y
 	case touch.TypeMove:
-		dt := (ev.Y - lastY) / 10
+		dt := (ev.Y - lastY)
+		lastY = ev.Y
 		freq := osc.Freq() - float64(dt)
-		if freq > 880 {
-			freq = 880
+		if freq > 20000 {
+			freq = 20000
 		}
-		if freq < 440 {
-			freq = 440
+		if freq < 0 {
+			freq = 0
 		}
 		osc.SetFreq(freq)
 	default:

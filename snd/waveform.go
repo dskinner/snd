@@ -35,7 +35,7 @@ type Waveform struct {
 }
 
 // TODO just how many samples do we want/need to display something useful?
-func NewWaveForm(in *Mixer, ctx gl.Context) (*Waveform, error) {
+func NewWaveform(in *Mixer, ctx gl.Context) (*Waveform, error) {
 	wf := &Waveform{
 		in:      in,
 		aligned: make([]float64, DefaultSampleSize*mixerbuf),
@@ -47,7 +47,11 @@ func NewWaveForm(in *Mixer, ctx gl.Context) (*Waveform, error) {
 		return nil, fmt.Errorf("error creating GL program: %v", err)
 	}
 
+	// create and alloc hw buf
 	wf.buf = ctx.CreateBuffer()
+	ctx.BindBuffer(gl.ARRAY_BUFFER, wf.buf)
+	ctx.BufferData(gl.ARRAY_BUFFER, make([]byte, len(wf.aligned)*12), gl.STREAM_DRAW)
+
 	wf.position = ctx.GetAttribLocation(wf.program, "position")
 	wf.color = ctx.GetUniformLocation(wf.program, "color")
 	return wf, nil
@@ -104,20 +108,19 @@ func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
 		xpos += xstep
 	}
 	data := f32.Bytes(binary.LittleEndian, verts...)
+
 	//
 	ctx.LineWidth(4)
 
 	ctx.UseProgram(wf.program)
-
 	ctx.Uniform4f(wf.color, 1, 1, 1, 1)
 
+	// update hw buf and draw
 	ctx.BindBuffer(gl.ARRAY_BUFFER, wf.buf)
 	ctx.EnableVertexAttribArray(wf.position)
 	ctx.VertexAttribPointer(wf.position, 3, gl.FLOAT, false, 0, 0)
-	ctx.BufferData(gl.ARRAY_BUFFER, data, gl.STREAM_DRAW)
-
+	ctx.BufferSubData(gl.ARRAY_BUFFER, 0, data)
 	ctx.DrawArrays(gl.LINE_STRIP, 0, len(samples))
-
 	ctx.DisableVertexAttribArray(wf.position)
 }
 
