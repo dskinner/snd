@@ -22,6 +22,8 @@ There is one such sample for each channel, one channel for mono, two channels fo
 Each sample can be one byte (8 bits), two bytes (16 bits), three bytes (24 bits), or maybe even 20 bits or a floating-point number. Sometimes, for more than 16 bits per sample, the sample is padded to 32 bits (4 bytes) The order of the bytes in a sample is different on different platforms. In a Windows WAV soundfile, the less significant bytes come first from left to right ("little endian" byte order). In an AIFF soundfile, it is the other way round, as is standard in Java ("big endian" byte order).
 */
 
+// TODO most everything in this package is not correctly handling/respecting Enabled()
+
 var (
 	DefaultSampleRate float64 = 44100
 	// TODO force powers of 2
@@ -36,6 +38,9 @@ type Sound interface {
 
 	// Output returns prepared sample frames.
 	Output() []float64
+
+	Enabled() bool
+	SetEnabled(bool)
 
 	// TODO maybe i want this, maybe I dont
 	// Input() Sound
@@ -90,15 +95,18 @@ type snd struct {
 
 	in  Sound
 	out []float64
+
+	enabled bool
 }
 
 func newSnd(in Sound) *snd {
 	return &snd{
-		sr:  DefaultSampleRate,
-		amp: 1,
-		mod: 1,
-		in:  in,
-		out: make([]float64, DefaultSampleSize),
+		sr:      DefaultSampleRate,
+		amp:     1,
+		mod:     1,
+		in:      in,
+		out:     make([]float64, DefaultSampleSize),
+		enabled: true,
 	}
 }
 
@@ -121,9 +129,17 @@ func (s *snd) Output() []float64 {
 }
 
 func (s *snd) Prepare() {
-	if s.in != nil {
+	if s.in != nil && s.enabled {
 		s.in.Prepare()
 	}
+}
+
+func (s *snd) Enabled() bool {
+	return s.enabled
+}
+
+func (s *snd) SetEnabled(b bool) {
+	s.enabled = b
 }
 
 type stereosnd struct {
@@ -139,6 +155,15 @@ func newStereosnd(in Sound) *stereosnd {
 		in:  in,
 		out: make([]float64, DefaultSampleSize*2),
 	}
+}
+
+func (s *stereosnd) Enabled() bool {
+	return s.l.enabled || s.r.enabled
+}
+
+func (s *stereosnd) SetEnabled(b bool) {
+	s.l.enabled = b
+	s.r.enabled = b
 }
 
 func (s *stereosnd) Prepare() {

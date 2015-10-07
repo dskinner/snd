@@ -1,3 +1,3 @@
 package snd
 
-const reduce = 64
+const reduce = 2

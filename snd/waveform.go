@@ -3,8 +3,8 @@ package snd
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 
-	"golang.org/x/mobile/event/size"
 	"golang.org/x/mobile/exp/f32"
 	"golang.org/x/mobile/exp/gl/glutil"
 	"golang.org/x/mobile/gl"
@@ -27,7 +27,7 @@ type Waveform struct {
 	color    gl.Uniform
 	buf      gl.Buffer
 
-	in *Mixer
+	in *Buffer
 
 	align    bool
 	alignamp float64
@@ -35,10 +35,10 @@ type Waveform struct {
 }
 
 // TODO just how many samples do we want/need to display something useful?
-func NewWaveform(in *Mixer, ctx gl.Context) (*Waveform, error) {
+func NewWaveform(ctx gl.Context, in *Buffer) (*Waveform, error) {
 	wf := &Waveform{
 		in:      in,
-		aligned: make([]float64, DefaultSampleSize*mixerbuf),
+		aligned: make([]float64, DefaultSampleSize*len(in.outs)),
 	}
 
 	var err error
@@ -71,13 +71,17 @@ func (wf *Waveform) Prepare() {
 
 }
 
-func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
+func (wf *Waveform) Paint(ctx gl.Context, xfrom, xto, yfrom, yto float32) {
 	// TODO this is racey and samples can be in the middle of changing
 	// move the slice copy to Prepare and sync with playback, or feed over chan
 	// TODO assumes mono
+
+	width := xto - xfrom
+	height := yto - yfrom
+
 	var (
-		xstep float32 = 1 / float32(DefaultSampleSize*mixerbuf)
-		xpos  float32 = -0.5
+		xstep float32 = width / float32(DefaultSampleSize*len(wf.in.outs))
+		xpos  float32 = xfrom
 	)
 
 	samples := wf.in.Samples()
@@ -85,24 +89,30 @@ func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
 	if wf.align {
 		// naive equivalent-time sampling
 		// TODO if audio and graphics were disjoint, a proper equiv-time smpl might be all we really need?
-		var mt int
+		var mt int = -1
 		for i, x := range samples {
 			if equals(x, wf.alignamp) {
 				mt = i
 				break
 			}
 		}
+
+		if mt == -1 {
+			log.Println("failed to locate trigger amp")
+			return
+		}
+
 		for i, x := range samples[mt:] {
 			wf.aligned[i] = x
 		}
 		samples = wf.aligned
 	}
 
-	//
+	// TODO cleanup garbage
 	verts := make([]float32, len(samples)*3)
 	for i, x := range samples {
 		verts[i*3] = float32(xpos)
-		verts[i*3+1] = float32(x / 2)
+		verts[i*3+1] = yfrom + (height * float32((x+1)/2))
 		verts[i*3+2] = 0
 
 		xpos += xstep
@@ -110,7 +120,7 @@ func (wf *Waveform) Paint(ctx gl.Context, sz size.Event) {
 	data := f32.Bytes(binary.LittleEndian, verts...)
 
 	//
-	ctx.LineWidth(4)
+	// ctx.LineWidth(4)
 
 	ctx.UseProgram(wf.program)
 	ctx.Uniform4f(wf.color, 1, 1, 1, 1)
