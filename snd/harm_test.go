@@ -7,10 +7,10 @@ import "testing"
 // "A pulse wave can be created by subtracting a sawtooth wave from a phase-shifted version of itself"
 // this may be way to at least guarantee some kind of consistency in the library and the HarmFuncs
 // though this wouldn't be a "complete" test.
-func TestHarmFuncs(t *testing.T) {
+func TestHarm(t *testing.T) {
 	for _, fn := range []HarmFunc{SineFunc, SquareFunc, SawtoothFunc, PulseFunc} {
 		var h Harm
-		h.Make(1, 0, fn)
+		h.Eval(1, 0, fn)
 		for i, e := range h {
 			if e < -1 || e > 1 {
 				t.Errorf("%#v not normalized at index %v", fn, i)
@@ -27,18 +27,18 @@ func BenchmarkSine(b *testing.B) {
 
 func BenchmarkSquare(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = Square()
+		_ = Square(1)
 	}
 }
 
 func BenchmarkSawtooth(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = Sawtooth()
+		_ = Sawtooth(1)
 	}
 }
 
 func BenchmarkPulse(b *testing.B) {
 	for n := 0; n < b.N; n++ {
-		_ = Pulse()
+		_ = Pulse(1)
 	}
 }

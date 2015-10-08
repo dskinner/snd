@@ -1,5 +1,5 @@
 // +build !android
 
-package snd
+package al
 
 const reduce = 1

@@ -2,9 +2,11 @@ package main
 
 import (
 	"log"
+	"sync"
 	"time"
 
 	"dasa.cc/piano/snd"
+	"dasa.cc/piano/snd/al"
 
 	"golang.org/x/mobile/app"
 	"golang.org/x/mobile/event/lifecycle"
@@ -19,13 +21,20 @@ const buffers = 8
 var (
 	sz size.Event
 
-	oal = snd.NewOpenAL()
+	ms = time.Millisecond
 
-	osc *snd.Osc
-	wfs []*snd.Waveform
+	harm  = snd.Sine()
+	notes = snd.EqualTempermant(12, 440, 48)
 
-	oscs  [12]*snd.Osc
 	adsrs [12]*snd.ADSR
+
+	piano    *Piano
+	pianomod *snd.ADSR
+	pianowf  *snd.Waveform
+
+	someosc *snd.Osc
+	somemod *snd.Osc
+	somewf  *snd.Waveform
 )
 
 func onStart(ctx gl.Context) {
@@ -33,73 +42,91 @@ func onStart(ctx gl.Context) {
 	ctx.Enable(gl.BLEND)
 	ctx.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
-	if err := oal.OpenDevice(buffers); err != nil {
+	if err := al.OpenDevice(buffers); err != nil {
 		log.Fatal(err)
-	}
-
-	harm := snd.Sine()
-
-	oscs[0] = snd.NewOsc(harm, 523.251)
-	oscs[1] = snd.NewOsc(harm, 554.365)
-	oscs[2] = snd.NewOsc(harm, 587.330)
-	oscs[3] = snd.NewOsc(harm, 622.254)
-	oscs[4] = snd.NewOsc(harm, 659.255)
-	oscs[5] = snd.NewOsc(harm, 698.456)
-	oscs[6] = snd.NewOsc(harm, 739.989)
-	oscs[7] = snd.NewOsc(harm, 783.991)
-	oscs[8] = snd.NewOsc(harm, 830.609)
-	oscs[9] = snd.NewOsc(harm, 880)
-	oscs[10] = snd.NewOsc(harm, 932.328)
-	oscs[11] = snd.NewOsc(harm, 987.767)
-
-	for i, osc := range oscs {
-		adsrs[i] = snd.NewADSR(200*time.Millisecond, 50*time.Millisecond, 400*time.Millisecond, 350*time.Millisecond, 0.8, 1, osc)
-		adsrs[i].SetEnabled(false)
 	}
 
 	mix := snd.NewMixer()
-	for _, adsr := range adsrs {
+
+	for i := range adsrs {
+		// notes[51] is Major C
+		osc := snd.NewOsc(harm, notes[51+i], snd.NewOsc(harm, 2, nil))
+		cmb := snd.NewComb(40*ms, 0.8, osc)
+		adsr := snd.NewADSR(400*ms, 150*ms, 400*ms, 350*ms, 0.7, 1, cmb)
+		adsr.SetEnabled(false)
+		adsr.SetLoop(false)
 		mix.Append(adsr)
+		adsrs[i] = adsr
 	}
 
-	// osc = snd.NewOsc(harm, 440)
-	// adsr := snd.NewADSR(200*time.Millisecond, 50*time.Millisecond, 400*time.Millisecond, 350*time.Millisecond, 0.5, 1, osc)
-	// mix := snd.NewMixer(adsr)
+	somemod = snd.NewOsc(harm, 2, nil)
+	someosc = snd.NewOsc(harm, 0, somemod)
+	mix.Append(someosc)
 
-	piano := snd.NewPiano()
-	bufpiano := snd.NewBuffer(4, piano)
-	mix.AppendQuiet(bufpiano)
+	piano = NewPiano()
+	pianobuf := snd.NewBuffer(4, piano)
+	mix.AppendQuiet(pianobuf)
 
-	buf := snd.NewBuffer(4, mix)
+	mixbuf := snd.NewBuffer(4, snd.NewFilter(1800, 250, mix))
 
-	pan := snd.NewPan(0, buf)
-	oal.SetInput(pan)
-	oal.Play()
+	pan := snd.NewPan(0, mixbuf)
+	al.AddSource(pan)
 
-	wf0, err := snd.NewWaveform(ctx, bufpiano)
+	var err error
+	pianowf, err = snd.NewWaveform(ctx, pianobuf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	wf0.Align(-0.999)
+	// pianowf.Align(-0.999)
 
-	wf1, err := snd.NewWaveform(ctx, buf)
+	somewf, err = snd.NewWaveform(ctx, mixbuf)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	wfs = append(wfs, wf0, wf1)
 }
 
 func onStop() {
-	oal.CloseDevice()
+	al.CloseDevice()
 }
 
-var touchseq = make(map[touch.Sequence]int)
+func onPaint(ctx gl.Context) {
+	ctx.ClearColor(0, 0, 0, 1)
+	ctx.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+
+	pianowf.Paint(ctx, -1, -1, 2, 1)
+	somewf.Paint(ctx, -1, 0.25, 2, 0.5)
+}
+
+var (
+	lastFreq float64 = 440
+	lastY    float32
+
+	touchseq = make(map[touch.Sequence]int)
+
+	whackypiano sync.Once
+)
 
 func onTouch(ev touch.Event) {
-	idx := int(ev.X / float32(sz.WidthPx) * 12)
-	if idx > 11 {
-		idx = 11
+	idx := piano.KeyAt(ev, sz)
+	if idx == -1 {
+		// top half
+		switch ev.Type {
+		case touch.TypeBegin:
+			lastY = ev.Y
+		case touch.TypeMove:
+			dt := (ev.Y - lastY)
+			lastY = ev.Y
+			freq := lastFreq - float64(dt)
+			if freq > 20000 {
+				freq = 20000
+			}
+			if freq < 0 {
+				freq = 0
+			}
+			someosc.SetFreq(freq, nil) // somemod
+			lastFreq = freq
+		}
+		return
 	}
 
 	switch ev.Type {
@@ -109,16 +136,7 @@ func onTouch(ev touch.Event) {
 		adsrs[idx].SetEnabled(true)
 		touchseq[ev.Sequence] = idx
 	case touch.TypeMove:
-		// dt := (ev.Y - lastY)
-		// lastY = ev.Y
-		// freq := osc.Freq() - float64(dt)
-		// if freq > 20000 {
-		// freq = 20000
-		// }
-		// if freq < 0 {
-		// freq = 0
-		// }
-		// osc.SetFreq(freq)
+
 		if lastidx, ok := touchseq[ev.Sequence]; ok {
 			if idx != lastidx {
 				adsrs[lastidx].Release()
@@ -133,14 +151,27 @@ func onTouch(ev touch.Event) {
 		delete(touchseq, ev.Sequence)
 	default:
 	}
-}
 
-func onPaint(ctx gl.Context) {
-	ctx.ClearColor(0, 0, 0, 1)
-	ctx.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
-
-	wfs[0].Paint(ctx, -1, 1, -1, 0)
-	wfs[1].Paint(ctx, -1, 1, 0, 1)
+	if len(touchseq) == 4 {
+		whackypiano.Do(func() {
+			pianomod = snd.NewADSR(
+				200*time.Millisecond,
+				50*time.Millisecond,
+				400*time.Millisecond,
+				350*time.Millisecond,
+				0.7, 1,
+				snd.NewOsc(harm, 44, snd.NewOsc(harm, 88, nil)))
+			piano.SetAmp(1, pianomod)
+			go func() {
+				time.Sleep(5 * time.Second)
+				pianomod.SetLoop(false)
+				pianomod.Release()
+				time.Sleep(200 * time.Millisecond)
+				piano.SetAmp(1, nil)
+				whackypiano = sync.Once{}
+			}()
+		})
+	}
 }
 
 func main() {
@@ -160,7 +191,6 @@ func main() {
 				case lifecycle.CrossOff:
 					visible = false
 					onStop()
-					oal.Destroy()
 				}
 			case touch.Event:
 				onTouch(ev)
@@ -168,6 +198,7 @@ func main() {
 				sz = ev
 			case paint.Event:
 				onPaint(glctx)
+				al.Tick()
 				a.Publish()
 				if visible {
 					a.Send(paint.Event{})

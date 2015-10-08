@@ -28,7 +28,7 @@ type ADSR struct {
 	duration float64
 
 	// TODO get rid of this ...
-	loop bool
+	noloop bool
 }
 
 func NewADSR(attack, decay, sustain, release time.Duration, susamp, maxamp float64, in Sound) *ADSR {
@@ -60,35 +60,57 @@ func (env *ADSR) Restart() {
 	env.count = 0
 }
 
+func (env *ADSR) SetLoop(b bool) {
+	env.noloop = !b
+}
+
+// TODO timing attack appears to be off. The value tested for is 200ms but result is 168ms.
+// var (
+// t          time.Time
+// printStart sync.Once
+// printEnd   sync.Once
+// )
+
 func (env *ADSR) Prepare() {
 	env.snd.Prepare()
 
 	for i, x := range env.in.Output() {
-		if env.count == env.duration {
-			env.count = 0
-			if !env.loop {
-				env.SetEnabled(false)
-				return
+		if env.enabled {
+			if env.count == env.duration {
+				env.count = 0
+				if env.noloop {
+					env.SetEnabled(false)
+					return
+				}
 			}
-		}
-		if env.count < env.attack {
-			env.amp = env.maxamp / env.attack * env.count
-		}
-		if env.count >= env.attack && env.count < (env.attack+env.decay) {
-			env.amp = ((env.susamp-env.maxamp)/env.decay)*(env.count-env.attack) + env.maxamp
-		}
-		if env.count >= (env.attack+env.decay) && env.count <= (env.duration-env.release) {
-			env.amp = env.susamp
-		}
-		if env.count > (env.duration - env.release) {
-			if env.sustaining {
+			if env.count < env.attack {
+				env.amp = env.maxamp / env.attack * env.count
+				// printStart.Do(func() {
+				// t = time.Now()
+				// log.Println("attack start", env.amp)
+				// })
+			}
+			if env.count >= env.attack && env.count < (env.attack+env.decay) {
+				// printEnd.Do(func() {
+				// log.Println("attack finished", time.Now().Sub(t))
+				// })
+				env.amp = ((env.susamp-env.maxamp)/env.decay)*(env.count-env.attack) + env.maxamp
+			}
+			if env.count >= (env.attack+env.decay) && env.count <= (env.duration-env.release) {
 				env.amp = env.susamp
-				env.count--
-			} else {
-				env.amp = ((0-env.susamp)/env.release)*(env.count-(env.duration-env.release)) + env.susamp
 			}
+			if env.count > (env.duration - env.release) {
+				if env.sustaining {
+					env.amp = env.susamp
+					env.count--
+				} else {
+					env.amp = ((0-env.susamp)/env.release)*(env.count-(env.duration-env.release)) + env.susamp
+				}
+			}
+			env.count++
+			env.out[i] = env.amp * x
+		} else {
+			env.out[i] = 0
 		}
-		env.count++
-		env.out[i] = env.amp * x
 	}
 }

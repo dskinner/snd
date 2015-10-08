@@ -1,11 +1,10 @@
 package snd
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log"
+	"math"
 
-	"golang.org/x/mobile/exp/f32"
 	"golang.org/x/mobile/exp/gl/glutil"
 	"golang.org/x/mobile/gl"
 )
@@ -14,12 +13,6 @@ import (
 // but the package is "snd". It doesn't make much sense to require
 // go mobile gl to build snd (increasing complexity of portability)
 // so move this to a subpkg requiring explicit importing.
-
-const epsilon = 0.0001
-
-func equals(a, b float64) bool {
-	return (a-b) < epsilon && (b-a) < epsilon
-}
 
 type Waveform struct {
 	program  gl.Program
@@ -32,14 +25,21 @@ type Waveform struct {
 	align    bool
 	alignamp float64
 	aligned  []float64
+
+	verts []float32
+
+	data []byte
 }
 
 // TODO just how many samples do we want/need to display something useful?
 func NewWaveform(ctx gl.Context, in *Buffer) (*Waveform, error) {
 	wf := &Waveform{
 		in:      in,
-		aligned: make([]float64, DefaultSampleSize*len(in.outs)),
+		aligned: make([]float64, len(in.samples)),
 	}
+
+	wf.verts = make([]float32, len(wf.aligned)*3)
+	wf.data = make([]byte, len(wf.verts)*4)
 
 	var err error
 	wf.program, err = glutil.CreateProgram(ctx, vertexShader, fragmentShader)
@@ -71,21 +71,20 @@ func (wf *Waveform) Prepare() {
 
 }
 
-func (wf *Waveform) Paint(ctx gl.Context, xfrom, xto, yfrom, yto float32) {
+func (wf *Waveform) Paint(ctx gl.Context, xps, yps, width, height float32) {
 	// TODO this is racey and samples can be in the middle of changing
 	// move the slice copy to Prepare and sync with playback, or feed over chan
 	// TODO assumes mono
 
-	width := xto - xfrom
-	height := yto - yfrom
-
 	var (
-		xstep float32 = width / float32(DefaultSampleSize*len(wf.in.outs))
-		xpos  float32 = xfrom
+		xstep float32 = width / float32(len(wf.in.samples))
+		xpos  float32 = xps
 	)
 
 	samples := wf.in.Samples()
 
+	// TODO would be nice if Buffer could return samples matching a pattern
+	// and get rid of this logic in here
 	if wf.align {
 		// naive equivalent-time sampling
 		// TODO if audio and graphics were disjoint, a proper equiv-time smpl might be all we really need?
@@ -108,19 +107,20 @@ func (wf *Waveform) Paint(ctx gl.Context, xfrom, xto, yfrom, yto float32) {
 		samples = wf.aligned
 	}
 
-	// TODO cleanup garbage
-	verts := make([]float32, len(samples)*3)
 	for i, x := range samples {
-		verts[i*3] = float32(xpos)
-		verts[i*3+1] = yfrom + (height * float32((x+1)/2))
-		verts[i*3+2] = 0
-
+		wf.verts[i*3] = float32(xpos)
+		wf.verts[i*3+1] = yps + (height * float32((x+1)/2))
+		wf.verts[i*3+2] = 0
 		xpos += xstep
 	}
-	data := f32.Bytes(binary.LittleEndian, verts...)
 
-	//
-	// ctx.LineWidth(4)
+	for i, x := range wf.verts {
+		u := math.Float32bits(x)
+		wf.data[4*i+0] = byte(u >> 0)
+		wf.data[4*i+1] = byte(u >> 8)
+		wf.data[4*i+2] = byte(u >> 16)
+		wf.data[4*i+3] = byte(u >> 24)
+	}
 
 	ctx.UseProgram(wf.program)
 	ctx.Uniform4f(wf.color, 1, 1, 1, 1)
@@ -129,8 +129,8 @@ func (wf *Waveform) Paint(ctx gl.Context, xfrom, xto, yfrom, yto float32) {
 	ctx.BindBuffer(gl.ARRAY_BUFFER, wf.buf)
 	ctx.EnableVertexAttribArray(wf.position)
 	ctx.VertexAttribPointer(wf.position, 3, gl.FLOAT, false, 0, 0)
-	ctx.BufferSubData(gl.ARRAY_BUFFER, 0, data)
-	ctx.DrawArrays(gl.LINE_STRIP, 0, len(samples))
+	ctx.BufferSubData(gl.ARRAY_BUFFER, 0, wf.data)
+	ctx.DrawArrays(gl.LINE_STRIP, 0, len(wf.aligned))
 	ctx.DisableVertexAttribArray(wf.position)
 }
 

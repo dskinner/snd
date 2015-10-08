@@ -39,7 +39,6 @@ func getpanpos(amt float64, ch int) float64 {
 
 type Pan struct {
 	*stereosnd
-
 	amt float64
 }
 
@@ -47,8 +46,7 @@ func NewPan(amt float64, in Sound) *Pan {
 	return &Pan{newStereosnd(in), amt}
 }
 
-// SetAmount takes an input pans it across two outputs by
-// an amount given as -1 to 1.
+// SetAmount takes an input pans it across two outputs by an amount given as -1 to 1.
 func (p *Pan) SetAmount(amt float64) { p.amt = amt }
 
 // Prepare interleaves the left and right channels.

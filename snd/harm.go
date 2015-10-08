@@ -14,14 +14,14 @@ import "math"
 
 const twopi = 2 * math.Pi
 
-var DefaultHarmLen = 1024
+const DefaultHarmLen = 1024
 
 // Harm is a collection of harmonic function evaluations.
 type Harm []float64
 
-// Make evaluates fn over the length of h. If h is nil, h will be allocated
+// Eval evaluates fn over the length of h. If h is nil, h will be allocated
 // with length DefaultHarmLen.
-func (h *Harm) Make(num int, phase float64, fn HarmFunc) {
+func (h *Harm) Eval(num int, phase float64, fn HarmFunc) {
 	if *h == nil {
 		*h = make(Harm, DefaultHarmLen)
 	}
@@ -46,7 +46,7 @@ func SineFunc(h Harm, num int, ph float64) {
 // Sine is a helper function returning an evaluated Harm.
 func Sine() Harm {
 	var h Harm
-	h.Make(1, 0, SineFunc)
+	h.Eval(1, 0, SineFunc)
 	return h
 }
 
@@ -77,7 +77,7 @@ func SquareFunc(h Harm, num int, ph float64) {
 
 func Square(num int) Harm {
 	var h Harm
-	h.Make(num, 0, SquareFunc)
+	h.Eval(num, 0, SquareFunc)
 	return h
 }
 
@@ -110,7 +110,7 @@ func SawtoothFunc(h Harm, num int, ph float64) {
 
 func Sawtooth(num int) Harm {
 	var h Harm
-	h.Make(num, 0, SawtoothFunc)
+	h.Eval(num, 0, SawtoothFunc)
 	return h
 }
 
@@ -143,6 +143,6 @@ func PulseFunc(h Harm, num int, ph float64) {
 
 func Pulse(num int) Harm {
 	var h Harm
-	h.Make(num, 0, PulseFunc)
+	h.Eval(num, 0, PulseFunc)
 	return h
 }

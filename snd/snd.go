@@ -1,4 +1,8 @@
 package snd // import "dasa.cc/piano/snd"
+import (
+	"fmt"
+	"math"
+)
 
 // TODO
 // https://en.wikipedia.org/wiki/Piano_key_frequencies
@@ -17,20 +21,64 @@ package snd // import "dasa.cc/piano/snd"
 
 /* http://dollopofdesi.blogspot.com/2011/09/interleaving-audio-files-to-different.html
 
-Each second of sound has so many (on a CD, 44,100) digital samples of sound pressure per second. The number of samples per second is called sample rate or sample frequency. In PCM (pulse code modulation) coding, each sample is usually a linear representation of amplitude as a signed integer (sometimes unsigned for 8 bit).
-There is one such sample for each channel, one channel for mono, two channels for stereo, four channels for quad, more for surround sound. One sample frame consists of one sample for each of the channels in turn, by convention running from left to right.
-Each sample can be one byte (8 bits), two bytes (16 bits), three bytes (24 bits), or maybe even 20 bits or a floating-point number. Sometimes, for more than 16 bits per sample, the sample is padded to 32 bits (4 bytes) The order of the bytes in a sample is different on different platforms. In a Windows WAV soundfile, the less significant bytes come first from left to right ("little endian" byte order). In an AIFF soundfile, it is the other way round, as is standard in Java ("big endian" byte order).
+Each second of sound has so many (on a CD, 44,100) digital samples of sound pressure per second.
+The number of samples per second is called sample rate or sample frequency.
+In PCM (pulse code modulation) coding, each sample is usually a linear representation of amplitude
+as a signed integer (sometimes unsigned for 8 bit).
+
+There is one such sample for each channel, one channel for mono, two channels for stereo,
+four channels for quad, more for surround sound. One sample frame consists of one sample
+for each of the channels in turn, by convention running from left to right.
+
+Each sample can be one byte (8 bits), two bytes (16 bits), three bytes (24 bits), or maybe
+even 20 bits or a floating-point number. Sometimes, for more than 16 bits per sample,
+the sample is padded to 32 bits (4 bytes) The order of the bytes in a sample is different
+on different platforms. In a Windows WAV soundfile, the less significant bytes come first
+from left to right ("little endian" byte order). In an AIFF soundfile, it is the other way
+round, as is standard in Java ("big endian" byte order).
 */
 
 // TODO most everything in this package is not correctly handling/respecting Enabled()
 
 var (
-	DefaultSampleRate float64 = 44100
-	// TODO force powers of 2
-	DefaultSampleSize int = 256
+	DefaultSampleRate     float64 = 44100
+	DefaultFrameBufferLen int     = 256
 )
 
+const epsilon = 0.0001
+
+func equals(a, b float64) bool {
+	return equaleps(a, b, epsilon)
+}
+
+func equaleps(a, b float64, eps float64) bool {
+	return (a-b) < eps && (b-a) < eps
+}
+
+type Decibel float64
+
+// Amp converts dB to amplitude multiplier.
+func (db Decibel) Amp() float64 {
+	return math.Pow(10, float64(db)/20)
+}
+
+func (db Decibel) String() string {
+	return fmt.Sprintf("%vdB", float64(db))
+}
+
 type Sound interface {
+	SampleRate() float64
+	// TODO FrameLen feels ambigious considerings channels is the length of samples in a frame,
+	// so frame length almost sounds like number of channels. Consider just calling Frames? NFrames?
+	// Or simply replace with Samples() or SamplesLen() which is less ambigious. Then Frames() can be
+	// Samples() / Channels(). Or, don't provide either or have Samples() replace Output(), len(Samples())
+	// where Samples() is only returning a slice pointer anyway so its cheap and concise.
+	FrameLen() int
+	Channels() int
+
+	Amp(sample int) float64
+	SetAmp(mult float64, mod Sound)
+
 	// Prepare is when a sound should prepare sample frames.
 	//
 	// TODO consider passing additional params regarding global state.
@@ -47,6 +95,14 @@ type Sound interface {
 	// SetInput(Sound)
 }
 
+func Mono(in Sound) Sound {
+	return newSnd(in)
+}
+
+func Stereo(in Sound) Sound {
+	return newStereosnd(in)
+}
+
 // TODO this is just an example of something I may or may not want
 // if i enable Input() and SetInput() on Sound and generify all implementations.
 type StereoSound interface {
@@ -58,40 +114,16 @@ type StereoSound interface {
 	SetRight(Sound)
 }
 
-// TODO maybe ditch this for mixer which already has a unique signature
-// compared to other sounds, make mixer prepare inputs.
-// one thing that's different about this is that it doesn't try to output
-// all of it's members. That means all snd's should call Prepare on their
-// inputs if looking to go only-mixer route.
-// type Slice []Sound
-
-// func (sl Slice) Prepare() {
-// for _, x := range sl {
-// x.Prepare()
-// }
-// }
-
-// TODO for now, last element of slice should be something like mixer
-// or whatever is intended to be played.
-// func (sl Slice) Output() []float64 {
-// return sl[len(sl)-1].Output()
-// }
-
+// TODO rename to Mono
 type snd struct {
-	// sample rate
 	sr float64
 
-	// amplitude
-	amp   float64
-	ampin *snd
-
-	// modulation
-	mod   float64
-	modin *snd
+	amp    float64
+	ampmod Sound
 
 	// TODO how about:
-	// phase
-	// group
+	// phase float64
+	// group float64
 
 	in  Sound
 	out []float64
@@ -103,21 +135,26 @@ func newSnd(in Sound) *snd {
 	return &snd{
 		sr:      DefaultSampleRate,
 		amp:     1,
-		mod:     1,
 		in:      in,
-		out:     make([]float64, DefaultSampleSize),
+		out:     make([]float64, DefaultFrameBufferLen),
 		enabled: true,
 	}
 }
 
-func (s *snd) SetAmp(amp float64, ampin *snd) {
-	s.amp = amp
-	s.ampin = ampin
+func (s *snd) SampleRate() float64 { return s.sr }
+func (s *snd) FrameLen() int       { return len(s.out) / s.Channels() }
+func (s *snd) Channels() int       { return 1 }
+
+func (s *snd) Amp(i int) float64 {
+	if s.ampmod != nil {
+		return s.amp * s.ampmod.Output()[i]
+	}
+	return s.amp
 }
 
-func (s *snd) SetMod(mod float64, modin *snd) {
-	s.mod = mod
-	s.modin = modin
+func (s *snd) SetAmp(amp float64, ampmod Sound) {
+	s.amp = amp
+	s.ampmod = ampmod
 }
 
 func (s *snd) SetInput(in Sound) {
@@ -129,8 +166,13 @@ func (s *snd) Output() []float64 {
 }
 
 func (s *snd) Prepare() {
-	if s.in != nil && s.enabled {
-		s.in.Prepare()
+	if s.enabled {
+		if s.in != nil {
+			s.in.Prepare()
+		}
+		if s.ampmod != nil {
+			s.ampmod.Prepare()
+		}
 	}
 }
 
@@ -150,11 +192,26 @@ type stereosnd struct {
 
 func newStereosnd(in Sound) *stereosnd {
 	return &stereosnd{
-		l:   newSnd(nil),
-		r:   newSnd(nil),
-		in:  in,
-		out: make([]float64, DefaultSampleSize*2),
+		l:  newSnd(nil),
+		r:  newSnd(nil),
+		in: in,
+		// framebufferlen * channels
+		out: make([]float64, DefaultFrameBufferLen*2),
 	}
+}
+
+func (s *stereosnd) SampleRate() float64 { return s.l.sr }
+func (s *stereosnd) FrameLen() int       { return len(s.out) / s.Channels() }
+func (s *stereosnd) Channels() int       { return 2 }
+
+func (s *stereosnd) Amp(i int) float64 {
+	// TODO just sum?
+	return (s.l.Amp(i) + s.r.Amp(i)) / 2
+}
+
+func (s *stereosnd) SetAmp(amp float64, ampmod Sound) {
+	s.l.SetAmp(amp, ampmod)
+	s.r.SetAmp(amp, ampmod)
 }
 
 func (s *stereosnd) Enabled() bool {
@@ -175,8 +232,6 @@ func (s *stereosnd) Prepare() {
 	}
 }
 
-// TODO elsewhere, given DefaultSampleSize (or perhaps use a new struct field)
-// determine number of channels based on size of []float64 where appropriate (such as openal.go)
 func (s *stereosnd) Output() []float64 {
 	return s.out
 }

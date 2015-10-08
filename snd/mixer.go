@@ -1,19 +1,19 @@
 package snd
 
 // TODO should mixer be stereo out?
+// TODO perhaps this class is unnecessary, any sound could be a mixer
+// if you can set multiple inputs, but might get confusing.
 type Mixer struct {
-	ins []Sound
-	out []float64
+	*snd
 
-	enabled bool
-
+	ins    []Sound
 	quiets []Sound
 }
 
 func NewMixer(ins ...Sound) *Mixer {
 	m := &Mixer{
+		snd: newSnd(nil),
 		ins: ins,
-		out: make([]float64, DefaultSampleSize),
 	}
 	return m
 }
@@ -27,14 +27,9 @@ func (m *Mixer) AppendQuiet(s Sound) {
 	m.quiets = append(m.quiets, s)
 }
 
-func (m *Mixer) Enabled() bool     { return m.enabled }
-func (m *Mixer) SetEnabled(b bool) { m.enabled = b }
-
-func (m *Mixer) Output() []float64 {
-	return m.out
-}
-
 func (m *Mixer) Prepare() {
+	m.snd.Prepare()
+
 	for _, in := range m.ins {
 		in.Prepare()
 	}
@@ -46,11 +41,13 @@ func (m *Mixer) Prepare() {
 
 	for i := range m.out {
 		m.out[i] = 0
+		div := 0
 		for _, in := range m.ins {
 			if in.Enabled() {
+				div++
 				m.out[i] += in.Output()[i]
 			}
 		}
-		m.out[i] /= float64(len(m.ins))
+		m.out[i] /= float64(div)
 	}
 }

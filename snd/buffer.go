@@ -15,9 +15,9 @@ func NewBuffer(n int, in Sound) *Buffer {
 	buf.snd = newSnd(in)
 	buf.outs = make([][]float64, n)
 	for i := range buf.outs {
-		buf.outs[i] = make([]float64, DefaultSampleSize)
+		buf.outs[i] = make([]float64, in.FrameLen()*in.Channels())
 	}
-	buf.samples = make([]float64, DefaultSampleSize*n)
+	buf.samples = make([]float64, in.FrameLen()*in.Channels()*n)
 	return buf
 }
 
@@ -40,8 +40,8 @@ func (buf *Buffer) Output() []float64 { return buf.in.Output() }
 func (buf *Buffer) Samples() []float64 {
 	// TODO racey given how this method is called
 	for i, out := range buf.outs {
-		idx := i * DefaultSampleSize
-		sl := buf.samples[idx : idx+DefaultSampleSize]
+		idx := i * len(out)
+		sl := buf.samples[idx : idx+len(out)]
 		for j, x := range out {
 			sl[j] = x
 		}

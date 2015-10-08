@@ -2,7 +2,6 @@ package snd
 
 type Gain struct {
 	*snd
-
 	mult float64
 }
 

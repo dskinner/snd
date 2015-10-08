@@ -6,42 +6,52 @@ type Osc struct {
 	// TODO how much of this can I just make exported?
 	// yes, freq and harm might not be thread safe exactly
 	// but what's the worse that could happen if it was swapped out?
-	h   Harm
-	fr  float64
+	h Harm
+
+	freq    float64
+	freqmod Sound
+
 	idx float64
 }
 
-func NewOsc(h Harm, fr float64) *Osc {
+func NewOsc(h Harm, freq float64, freqmod Sound) *Osc {
 	return &Osc{
-		snd: newSnd(nil),
-		h:   h,
-		fr:  fr,
+		snd:     newSnd(nil),
+		h:       h,
+		freq:    freq,
+		freqmod: freqmod,
 	}
 }
 
-func (osc *Osc) Freq() float64 {
-	return osc.fr
+func (osc *Osc) Freq(i int) float64 {
+	if osc.freqmod != nil {
+		return osc.freq * osc.freqmod.Output()[i]
+	}
+	return osc.freq
 }
 
-func (osc *Osc) SetFreq(fr float64) {
-	osc.fr = fr
+func (osc *Osc) SetFreq(freq float64, freqmod Sound) {
+	osc.freq = freq
+	osc.freqmod = freqmod
 }
 
 func (osc *Osc) Prepare() {
 	osc.snd.Prepare()
+	if osc.freqmod != nil {
+		osc.freqmod.Prepare()
+	}
 
 	var (
 		inc float64
 		l   float64 = float64(len(osc.h))
 		f   float64 = l / osc.snd.sr
-
-		// allows changes to underlying variable during prepare
-		fr = osc.fr
 	)
 
 	for i := range osc.snd.out {
+		freq := osc.Freq(i)
+
 		osc.snd.out[i] = osc.snd.amp * osc.h[int(osc.idx)]
-		inc = fr * f
+		inc = freq * f
 		osc.idx += inc
 
 		for osc.idx >= l {
