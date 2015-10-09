@@ -41,13 +41,10 @@ func (m *Mixer) Prepare() {
 
 	for i := range m.out {
 		m.out[i] = 0
-		div := 0
-		for _, in := range m.ins {
-			if in.Enabled() {
-				div++
+		if m.enabled {
+			for _, in := range m.ins {
 				m.out[i] += in.Output()[i]
 			}
 		}
-		m.out[i] /= float64(div)
 	}
 }

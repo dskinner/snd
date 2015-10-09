@@ -18,6 +18,8 @@ import (
 // http://public.wsu.edu/~jkrug/MUS364/audio/Waveforms.htm
 // https://en.wikipedia.org/wiki/Window_function#Hamming_window
 // http://uenics.evansville.edu/~amr63/equipment/scope/oscilloscope.html
+//
+// http://www.csounds.com/manual/html/
 
 /* http://dollopofdesi.blogspot.com/2011/09/interleaving-audio-files-to-different.html
 
@@ -40,9 +42,9 @@ round, as is standard in Java ("big endian" byte order).
 
 // TODO most everything in this package is not correctly handling/respecting Enabled()
 
-var (
+const (
 	DefaultSampleRate     float64 = 44100
-	DefaultFrameBufferLen int     = 256
+	DefaultFrameBufferLen int     = 256 // TODO maybe just call SamplePeriodLen
 )
 
 const epsilon = 0.0001
@@ -86,6 +88,7 @@ type Sound interface {
 
 	// Output returns prepared sample frames.
 	Output() []float64
+	OutputAt(pos int) float64
 
 	Enabled() bool
 	SetEnabled(bool)
@@ -165,15 +168,20 @@ func (s *snd) Output() []float64 {
 	return s.out
 }
 
+// TODO start using this where appropriate
+func (s *snd) OutputAt(i int) float64 {
+	return s.out[i%len(s.out)]
+}
+
 func (s *snd) Prepare() {
-	if s.enabled {
-		if s.in != nil {
-			s.in.Prepare()
-		}
-		if s.ampmod != nil {
-			s.ampmod.Prepare()
-		}
+	// if s.enabled {
+	if s.in != nil {
+		s.in.Prepare()
 	}
+	if s.ampmod != nil {
+		s.ampmod.Prepare()
+	}
+	// }
 }
 
 func (s *snd) Enabled() bool {
@@ -234,4 +242,8 @@ func (s *stereosnd) Prepare() {
 
 func (s *stereosnd) Output() []float64 {
 	return s.out
+}
+
+func (s *stereosnd) OutputAt(i int) float64 {
+	return s.out[i%len(s.out)]
 }

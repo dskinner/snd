@@ -1,6 +1,14 @@
 package snd
 
-type Osc struct {
+type Oscillator interface {
+	Sound
+	SetFreq(freq float64, freqmod Sound)
+}
+
+type osc2 struct {
+}
+
+type osc struct {
 	*snd
 
 	// TODO how much of this can I just make exported?
@@ -14,8 +22,8 @@ type Osc struct {
 	idx float64
 }
 
-func NewOsc(h Harm, freq float64, freqmod Sound) *Osc {
-	return &Osc{
+func Osc(h Harm, freq float64, freqmod Sound) Oscillator {
+	return &osc{
 		snd:     newSnd(nil),
 		h:       h,
 		freq:    freq,
@@ -23,19 +31,19 @@ func NewOsc(h Harm, freq float64, freqmod Sound) *Osc {
 	}
 }
 
-func (osc *Osc) Freq(i int) float64 {
+func (osc *osc) Freq(i int) float64 {
 	if osc.freqmod != nil {
 		return osc.freq * osc.freqmod.Output()[i]
 	}
 	return osc.freq
 }
 
-func (osc *Osc) SetFreq(freq float64, freqmod Sound) {
+func (osc *osc) SetFreq(freq float64, freqmod Sound) {
 	osc.freq = freq
 	osc.freqmod = freqmod
 }
 
-func (osc *Osc) Prepare() {
+func (osc *osc) Prepare() {
 	osc.snd.Prepare()
 	if osc.freqmod != nil {
 		osc.freqmod.Prepare()
@@ -48,17 +56,21 @@ func (osc *Osc) Prepare() {
 	)
 
 	for i := range osc.snd.out {
-		freq := osc.Freq(i)
+		if osc.enabled {
+			freq := osc.Freq(i)
 
-		osc.snd.out[i] = osc.snd.amp * osc.h[int(osc.idx)]
-		inc = freq * f
-		osc.idx += inc
+			osc.snd.out[i] = osc.snd.amp * osc.h[int(osc.idx)]
+			inc = freq * f
+			osc.idx += inc
 
-		for osc.idx >= l {
-			osc.idx -= l
-		}
-		for osc.idx < 0 {
-			osc.idx += l
+			for osc.idx >= l {
+				osc.idx -= l
+			}
+			for osc.idx < 0 {
+				osc.idx += l
+			}
+		} else {
+			osc.out[i] = 0
 		}
 	}
 }

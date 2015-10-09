@@ -24,7 +24,12 @@ type openal struct {
 	in     snd.Sound
 	out    []byte
 
+	quit chan struct{}
+
 	underruns uint64
+	preptime  time.Duration
+	prepcalls uint64
+	tickcount uint64
 }
 
 func OpenDevice(buflen int) error {
@@ -71,26 +76,62 @@ func AddSource(in snd.Sound) error {
 	hwa.buffers = b
 
 	for i := 0; i < len(hwa.buffers); i++ {
-		prepare()
+		incbufferidx()
+		queue()
 	}
 
 	d := time.Duration(float64(in.FrameLen()) / in.SampleRate() * float64(time.Second) * float64(len(hwa.buffers)))
-	log.Println("snd: latency:", d)
-	// tick := time.Tick(d / 2)
+	log.Println("snd/al: latency", d)
 
 	return nil
 }
 
-func Tick() {
+func Start() {
+	if hwa.quit != nil {
+		panic("snd/al: hwa.quit not nil")
+	}
+	hwa.quit = make(chan struct{})
+	go func() {
+		d := time.Duration(float64(hwa.in.FrameLen()) / hwa.in.SampleRate() * float64(time.Second) * float64(len(hwa.buffers)))
+		tick := time.Tick(d / 2)
+		for {
+			select {
+			case <-hwa.quit:
+				return
+			case <-tick:
+				prep()
+			}
+		}
+	}()
+}
+
+func Stop() {
+	close(hwa.quit)
+}
+
+func prep() {
+	hwa.tickcount++
+
 	if code := al.DeviceError(); code != 0 {
-		log.Printf("snd/al: unknown device error [err=%v]\n", code)
+		log.Printf("snd/al: unknown device error [err=%v] [tick=%v]\n", code, hwa.tickcount)
 	}
 	if code := al.Error(); code != 0 {
-		log.Printf("snd/al: unknown error [err=%v]\n", code)
+		log.Printf("snd/al: unknown error [err=%v] [tick=%v]\n", code, hwa.tickcount)
 	}
 
-	for i := hwa.source.BuffersProcessed(); i > 0; i-- {
-		prepare()
+	// log.Println("BuffersQueued", hwa.source.BuffersQueued())
+	i := hwa.source.BuffersProcessed()
+	// log.Println("BuffersProcessed", i)
+	for ; i > 0; i-- {
+		start := time.Now()
+		incbufferidx()
+		if err := unqueue(); err != nil {
+			log.Println(err)
+		} else if err := queue(); err != nil {
+			log.Println(err)
+		}
+		hwa.preptime += time.Now().Sub(start)
+		hwa.prepcalls++
 	}
 
 	switch hwa.source.State() {
@@ -100,43 +141,47 @@ func Tick() {
 	case al.Paused:
 	case al.Stopped:
 		hwa.underruns++
-		log.Println("buffer underrun")
 		al.PlaySources(hwa.source)
 	}
 }
 
-func prepare() {
-	//
-	// time.Sleep(500 * time.Millisecond)
+func Underruns() uint64 {
+	return hwa.underruns
+}
 
-	// t := time.Now()
+func PrepStats() (total time.Duration, calls uint64) {
+	return hwa.preptime, hwa.prepcalls
+}
+
+func incbufferidx() {
+	hwa.bufidx = (hwa.bufidx + 1) % len(hwa.buffers)
+}
+
+func unqueue() error {
+	hwa.source.UnqueueBuffers([]al.Buffer{hwa.buffers[hwa.bufidx]})
+	if code := al.Error(); code != 0 {
+		return fmt.Errorf("snd/al: unqueue buffer failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
+	}
+	return nil
+}
+
+func queue() error {
 	hwa.in.Prepare()
-	// log.Println(time.Now().Sub(t))
-
-	// TODO don't just assume stereo sound
-	// encode final signal
 	for i, x := range hwa.in.Output() {
-		n := int16(math.MaxInt16*x) / reduce
+		n := int16(math.MaxInt16 * x)
 		hwa.out[2*i] = byte(n)
 		hwa.out[2*i+1] = byte(n >> 8)
 	}
 
-	// queue
-	hwa.bufidx = (hwa.bufidx + 1) % len(hwa.buffers)
-
-	// TODO on first proc, buffers aren't queued so this causes error.
-	hwa.source.UnqueueBuffers([]al.Buffer{hwa.buffers[hwa.bufidx]})
-	if code := al.Error(); code != 0 {
-		log.Printf("snd: unqueue buffer failed [id=%v] [err=%v]\n", hwa.bufidx, code)
-	}
-
 	hwa.buffers[hwa.bufidx].BufferData(hwa.format, hwa.out, int32(hwa.in.SampleRate()))
 	if code := al.Error(); code != 0 {
-		log.Printf("snd: buffer data failed [id=%v] [err=%v]\n", hwa.bufidx, code)
+		return fmt.Errorf("snd/al: buffer data failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
 	}
 
 	hwa.source.QueueBuffers([]al.Buffer{hwa.buffers[hwa.bufidx]})
 	if code := al.Error(); code != 0 {
-		log.Printf("snd: queue buffer failed [id=%v] [err=%v]\n", hwa.bufidx, code)
+		return fmt.Errorf("snd/al: queue buffer failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
 	}
+
+	return nil
 }

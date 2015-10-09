@@ -21,21 +21,70 @@ const buffers = 8
 var (
 	sz size.Event
 
+	fps       int
+	lastpaint = time.Now()
+
 	ms = time.Millisecond
 
 	harm  = snd.Sine()
 	notes = snd.EqualTempermant(12, 440, 48)
 
-	adsrs [12]*snd.ADSR
+	keys [12]*Key
 
 	piano    *Piano
+	pianobuf *snd.Buffer
 	pianomod *snd.ADSR
 	pianowf  *snd.Waveform
 
-	someosc *snd.Osc
-	somemod *snd.Osc
-	somewf  *snd.Waveform
+	mix   *snd.Mixer
+	mixwf *snd.Waveform
+
+	someosc snd.Oscillator
+	somemod snd.Oscillator
 )
+
+type Key struct {
+	*snd.Instrument
+	adsr    *snd.ADSR
+	release time.Duration
+}
+
+func NewKey(freq float64) *Key {
+	// adsr release and also offin value for instrument
+	release := 350 * ms
+
+	osc := snd.Osc(harm, freq, snd.Osc(harm, 2, nil))
+	comb := snd.NewComb(40*ms, 0.8, osc)
+	adsr := snd.NewADSR(200*ms, 150*ms, 400*ms, release, 0.7, 1, comb)
+	unit := snd.NewUnit(0.5, 0, snd.UnitStep)
+	ring := snd.NewRing(unit, adsr)
+
+	instr := snd.NewInstrument(ring)
+	instr.Manage(osc)
+	instr.Manage(comb)
+	instr.Manage(adsr)
+	instr.Manage(unit)
+	instr.Manage(ring)
+	instr.Off()
+
+	key := &Key{
+		Instrument: instr,
+		adsr:       adsr,
+		release:    release,
+	}
+	return key
+}
+
+func (key *Key) Press() {
+	key.adsr.Sustain()
+	key.adsr.Restart()
+	key.On()
+}
+
+func (key *Key) Release() {
+	key.adsr.Release()
+	key.OffIn(key.release)
+}
 
 func onStart(ctx gl.Context) {
 	ctx.Enable(gl.DEPTH_TEST)
@@ -46,43 +95,43 @@ func onStart(ctx gl.Context) {
 		log.Fatal(err)
 	}
 
-	mix := snd.NewMixer()
+	var err error
 
-	for i := range adsrs {
+	// piano key sounds
+	mix = snd.NewMixer()
+	for i := range keys {
 		// notes[51] is Major C
-		osc := snd.NewOsc(harm, notes[51+i], snd.NewOsc(harm, 2, nil))
-		cmb := snd.NewComb(40*ms, 0.8, osc)
-		adsr := snd.NewADSR(400*ms, 150*ms, 400*ms, 350*ms, 0.7, 1, cmb)
-		adsr.SetEnabled(false)
-		adsr.SetLoop(false)
-		mix.Append(adsr)
-		adsrs[i] = adsr
+		keys[i] = NewKey(notes[51+i])
+		mix.Append(keys[i])
 	}
-
-	somemod = snd.NewOsc(harm, 2, nil)
-	someosc = snd.NewOsc(harm, 0, somemod)
-	mix.Append(someosc)
-
-	piano = NewPiano()
-	pianobuf := snd.NewBuffer(4, piano)
-	mix.AppendQuiet(pianobuf)
-
 	mixbuf := snd.NewBuffer(4, snd.NewFilter(1800, 250, mix))
-
 	pan := snd.NewPan(0, mixbuf)
 	al.AddSource(pan)
+	mixwf, err = snd.NewWaveform(ctx, mixbuf)
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	var err error
+	// piano graphics
+	piano = NewPiano()
+	pianobuf = snd.NewBuffer(4, piano)
+	mix.AppendQuiet(pianobuf)
 	pianowf, err = snd.NewWaveform(ctx, pianobuf)
 	if err != nil {
 		log.Fatal(err)
 	}
 	// pianowf.Align(-0.999)
 
-	somewf, err = snd.NewWaveform(ctx, mixbuf)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// experimental bits
+	somemod = snd.Osc(harm, 2, nil)
+	someosc = snd.Osc(harm, 0, nil)
+	mix.Append(someosc)
+	// somedelay := snd.NewDelay(time.Second, someosc)
+	// for i := 1; i < 10; i++ {
+	// dur := time.Duration(int64(13*i)) * ms
+	// tap := snd.NewTap(dur, somedelay)
+	// mix.Append(tap)
+	// }
 }
 
 func onStop() {
@@ -94,7 +143,11 @@ func onPaint(ctx gl.Context) {
 	ctx.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
 	pianowf.Paint(ctx, -1, -1, 2, 1)
-	somewf.Paint(ctx, -1, 0.25, 2, 0.5)
+	mixwf.Paint(ctx, -1, 0.25, 2, 0.5)
+
+	now := time.Now()
+	fps = int(time.Second / now.Sub(lastpaint))
+	lastpaint = now
 }
 
 var (
@@ -126,28 +179,26 @@ func onTouch(ev touch.Event) {
 			someosc.SetFreq(freq, nil) // somemod
 			lastFreq = freq
 		}
+		// TODO drag finger off piano and it still plays, shouldn't return here
+		// to allow TypeMove to figure out what to turn off
 		return
 	}
 
 	switch ev.Type {
 	case touch.TypeBegin:
-		adsrs[idx].Sustain()
-		adsrs[idx].Restart()
-		adsrs[idx].SetEnabled(true)
+		keys[idx].Press()
 		touchseq[ev.Sequence] = idx
 	case touch.TypeMove:
-
+		// TODO drag finger off piano and it still plays, should stop
 		if lastidx, ok := touchseq[ev.Sequence]; ok {
 			if idx != lastidx {
-				adsrs[lastidx].Release()
-				adsrs[idx].Sustain()
-				adsrs[idx].Restart()
-				adsrs[idx].SetEnabled(true)
+				keys[lastidx].Release()
+				keys[idx].Press()
 				touchseq[ev.Sequence] = idx
 			}
 		}
 	case touch.TypeEnd:
-		adsrs[idx].Release()
+		keys[idx].Release()
 		delete(touchseq, ev.Sequence)
 	default:
 	}
@@ -160,11 +211,11 @@ func onTouch(ev touch.Event) {
 				400*time.Millisecond,
 				350*time.Millisecond,
 				0.7, 1,
-				snd.NewOsc(harm, 44, snd.NewOsc(harm, 88, nil)))
+				snd.Osc(harm, 44, snd.Osc(harm, 88, nil)))
 			piano.SetAmp(1, pianomod)
 			go func() {
 				time.Sleep(5 * time.Second)
-				pianomod.SetLoop(false)
+				// pianomod.SetLoop(false)
 				pianomod.Release()
 				time.Sleep(200 * time.Millisecond)
 				piano.SetAmp(1, nil)
@@ -176,10 +227,21 @@ func onTouch(ev touch.Event) {
 
 func main() {
 	app.Main(func(a app.App) {
+
+		logdbg := time.NewTicker(time.Second)
+		go func() {
+			for range logdbg.C {
+				preptime, prepcalls := al.PrepStats()
+				prepavg := preptime / time.Duration(prepcalls)
+				log.Printf("fps=%-5v underruns=%-6v prepavg=%-15s preptime=%-18s prepcalls=%v\n", fps, al.Underruns(), prepavg, preptime, prepcalls)
+			}
+		}()
+
 		var (
 			glctx   gl.Context
 			visible bool
 		)
+
 		for ev := range a.Events() {
 			switch ev := a.Filter(ev).(type) {
 			case lifecycle.Event:
@@ -188,8 +250,11 @@ func main() {
 					visible = true
 					glctx = ev.DrawContext.(gl.Context)
 					onStart(glctx)
+					al.Start()
 				case lifecycle.CrossOff:
 					visible = false
+					al.Stop()
+					logdbg.Stop()
 					onStop()
 				}
 			case touch.Event:
@@ -198,7 +263,6 @@ func main() {
 				sz = ev
 			case paint.Event:
 				onPaint(glctx)
-				al.Tick()
 				a.Publish()
 				if visible {
 					a.Send(paint.Event{})

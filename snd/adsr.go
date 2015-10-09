@@ -26,24 +26,23 @@ type ADSR struct {
 	count float64
 	// envelope duration
 	duration float64
-
-	// TODO get rid of this ...
-	noloop bool
 }
 
 func NewADSR(attack, decay, sustain, release time.Duration, susamp, maxamp float64, in Sound) *ADSR {
-	env := &ADSR{
-		snd:     newSnd(in),
-		attack:  DefaultSampleRate * float64(attack) / float64(time.Second),
-		decay:   DefaultSampleRate * float64(decay) / float64(time.Second),
-		sustain: DefaultSampleRate * float64(sustain) / float64(time.Second),
-		release: DefaultSampleRate * float64(release) / float64(time.Second),
-		// duration: DefaultSampleRate * float64(duration) / float64(time.Second),
-		susamp: susamp,
-		maxamp: maxamp,
+	sr := DefaultSampleRate
+	if in != nil {
+		sr = in.SampleRate()
 	}
-	env.duration = env.attack + env.decay + env.sustain + env.release
-	return env
+	return &ADSR{
+		snd:      newSnd(in),
+		attack:   sr * float64(attack) / float64(time.Second),
+		decay:    sr * float64(decay) / float64(time.Second),
+		sustain:  sr * float64(sustain) / float64(time.Second),
+		release:  sr * float64(release) / float64(time.Second),
+		duration: sr * float64(attack+decay+sustain+release) / float64(time.Second),
+		susamp:   susamp,
+		maxamp:   maxamp,
+	}
 }
 
 // Sustain locks envelope when sustain period is reached.
@@ -60,10 +59,6 @@ func (env *ADSR) Restart() {
 	env.count = 0
 }
 
-func (env *ADSR) SetLoop(b bool) {
-	env.noloop = !b
-}
-
 // TODO timing attack appears to be off. The value tested for is 200ms but result is 168ms.
 // var (
 // t          time.Time
@@ -78,10 +73,6 @@ func (env *ADSR) Prepare() {
 		if env.enabled {
 			if env.count == env.duration {
 				env.count = 0
-				if env.noloop {
-					env.SetEnabled(false)
-					return
-				}
 			}
 			if env.count < env.attack {
 				env.amp = env.maxamp / env.attack * env.count
