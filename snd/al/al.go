@@ -13,14 +13,43 @@ import (
 
 var hwa *openal
 
+// Buffer provides adaptive buffering for real-time responses that outpace
+// openal's ability to report a buffer as processed.
+// Constant-time synchronization is left up to the caller.
+// TODO consider naming SourceBuffers and embedding
+type Buffer struct {
+	src  al.Source
+	bufs []al.Buffer // intrinsic to src
+	size int         // size of buffers returned by Get
+	idx  int         // last known index still processing or ready for reuse
+}
+
+// Get returns a slice of buffers of length b.size ready to receive data and be queued.
+// If b.src reports processing at-least as many buffers as b.size, buffers up to b.size
+// will be unqueued for reuse. Otherwise, new buffers will be generated.
+func (b *Buffer) Get() (bufs []al.Buffer) {
+	if proc := int(b.src.BuffersProcessed()); proc >= b.size {
+		// advance by size, BuffersProcessed will report that many less next time.
+		bufs = b.bufs[b.idx : b.idx+b.size]
+		b.src.UnqueueBuffers(bufs)
+		if code := al.Error(); code != 0 {
+			log.Printf("snd/al: unqueue buffers failed [err=%v]\n", code)
+		}
+		b.idx = (b.idx + b.size) % len(b.bufs)
+	} else {
+		// make more buffers to fill data regardless of what openal says about processed.
+		bufs = al.GenBuffers(b.size)
+		if code := al.Error(); code != 0 {
+			log.Printf("snd/al: generate buffers failed [err=%v]", code)
+		}
+		b.bufs = append(b.bufs, bufs...)
+	}
+	return bufs
+}
+
 type openal struct {
-	buflen int
-
 	source al.Source
-
-	buffers []al.Buffer
-	bufproc int // number of buffers processed
-	bufidx  int // index into buffers
+	buf    *Buffer
 
 	format uint32
 	in     snd.Sound
@@ -29,8 +58,7 @@ type openal struct {
 	quit chan struct{}
 
 	underruns uint64
-	preptime  time.Duration
-	prepcalls uint64
+	ticktime  time.Duration
 	tickcount uint64
 }
 
@@ -41,12 +69,12 @@ func OpenDevice(buflen int) error {
 	if buflen == 0 || buflen&(buflen-1) != 0 {
 		return fmt.Errorf("snd/al: buflen(%v) not a power of 2", buflen)
 	}
-	hwa = &openal{buflen: buflen, prepcalls: 1}
+	hwa = &openal{buf: &Buffer{size: buflen}}
 	return nil
 }
 
 func CloseDevice() error {
-	al.DeleteBuffers(hwa.buffers)
+	al.DeleteBuffers(hwa.buf.bufs)
 	al.DeleteSources(hwa.source)
 	al.CloseDevice()
 	hwa = nil
@@ -70,22 +98,15 @@ func AddSource(in snd.Sound) error {
 		return fmt.Errorf("snd/al: generate source failed [err=%v]", code)
 	}
 	hwa.source = s[0]
+	hwa.buf.src = s[0]
 
-	// b := al.GenBuffers(hwa.buflen)
-	// if code := al.Error(); code != 0 {
-	// 	return fmt.Errorf("snd/al: generate buffers failed [err=%v]", code)
-	// }
-	// hwa.buffers = b
-
-	// for i := 0; i < len(hwa.buffers); i++ {
-	// 	incbufferidx()
-	// 	queue()
-	// }
-
-	d := time.Duration(float64(in.FrameLen()) / in.SampleRate() * float64(time.Second) * float64(hwa.buflen))
-	log.Println("snd/al: latency", d)
+	log.Println("snd/al: latency", Latency())
 
 	return nil
+}
+
+func Latency() time.Duration {
+	return time.Duration(float64(hwa.in.FrameLen()) / hwa.in.SampleRate() * float64(time.Second) * float64(hwa.buf.size))
 }
 
 func Start() {
@@ -94,8 +115,7 @@ func Start() {
 	}
 	hwa.quit = make(chan struct{})
 	go func() {
-		d := time.Duration(float64(hwa.in.FrameLen()) / hwa.in.SampleRate() * float64(time.Second) * float64(hwa.buflen))
-		tick := time.Tick(d) // / 2) // TODO i want to tick at half the rate!!!! or ill risk overruns all the time. this is for debugging only
+		tick := time.Tick(Latency()) // / 2) // TODO i want to tick at half the rate!!!! or ill risk overruns all the time. this is for debugging only
 		for {
 			select {
 			case <-hwa.quit:
@@ -112,54 +132,16 @@ func Stop() {
 }
 
 func Tick() {
-	hwa.tickcount++
+	start := time.Now()
 
 	if code := al.DeviceError(); code != 0 {
-		log.Printf("snd/al: unknown device error [err=%v] [tick=%v]\n", code, hwa.tickcount)
+		log.Printf("snd/al: unknown device error [err=%v]\n", code)
 	}
 	if code := al.Error(); code != 0 {
-		log.Printf("snd/al: unknown error [err=%v] [tick=%v]\n", code, hwa.tickcount)
+		log.Printf("snd/al: unknown error [err=%v]\n", code)
 	}
 
-	// for i := hwa.source.BuffersProcessed(); i > 0; i-- {
-	// start := time.Now()
-	// incbufferidx()
-	// if err := unqueue(); err != nil {
-	// log.Println(err)
-	// } else if err := queue(); err != nil {
-	// log.Println(err)
-	// }
-	// hwa.preptime += time.Now().Sub(start)
-	// hwa.prepcalls++
-	// }
-
-	// @@@ make new buffers everytime
-
-	// TODO I'm ticking at half the rate of time to fill buffers!!! so i have use buflen/2 below
-	start := time.Now()
-	var bufs []al.Buffer
-	if hwa.bufproc = int(hwa.source.BuffersProcessed()); hwa.bufproc >= hwa.buflen {
-		// TODO advance hwa.bufidx somewhere
-		// bufidx is last index we're aware of that started processing
-		//
-		// if we only advance by buflen, then hopefully buffersprocessed will report
-		// half as much next time around allowing for buffers processed to be greater than
-		// buflen.
-		bufs = hwa.buffers[hwa.bufidx : hwa.bufidx+hwa.buflen]
-		hwa.source.UnqueueBuffers(bufs)
-		if code := al.Error(); code != 0 {
-			log.Printf("snd/al: unqueue buffers failed [err=%v]\n", code)
-		}
-		hwa.bufidx = (hwa.bufidx + hwa.buflen) % len(hwa.buffers)
-	} else {
-		// let's make some more buffers since we're here to fill data
-		// regardless of what openal says.
-		bufs = al.GenBuffers(hwa.buflen)
-		if code := al.Error(); code != 0 {
-			log.Printf("snd/al: generate buffers failed [err=%v]", code)
-		}
-		hwa.buffers = append(hwa.buffers, bufs...)
-	}
+	bufs := hwa.buf.Get()
 
 	for _, buf := range bufs {
 		hwa.in.Prepare()
@@ -171,19 +153,14 @@ func Tick() {
 
 		buf.BufferData(hwa.format, hwa.out, int32(hwa.in.SampleRate()))
 		if code := al.Error(); code != 0 {
-			log.Printf("snd/al: buffer data failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
+			log.Printf("snd/al: buffer data failed [err=%v]\n", code)
 		}
 	}
 
 	hwa.source.QueueBuffers(bufs)
 	if code := al.Error(); code != 0 {
-		log.Printf("snd/al: queue buffer failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
+		log.Printf("snd/al: queue buffer failed [err=%v]\n", code)
 	}
-	hwa.preptime += time.Now().Sub(start)
-	hwa.prepcalls++
-
-	// log.Printf("buflen[%v] bufproc[%v] bufidx[%v]\n", len(hwa.buffers), hwa.bufproc, hwa.bufidx)
-	// @@@
 
 	switch hwa.source.State() {
 	case al.Initial:
@@ -194,45 +171,22 @@ func Tick() {
 		hwa.underruns++
 		al.PlaySources(hwa.source)
 	}
+
+	hwa.ticktime += time.Now().Sub(start)
+	hwa.tickcount++
 }
 
-func BufStats() (buflen int, underruns uint64) {
-	return len(hwa.buffers), hwa.underruns
+func BufLen() int {
+	return len(hwa.buf.bufs)
 }
 
-func PrepStats() (total time.Duration, calls uint64) {
-	return hwa.preptime, hwa.prepcalls
+func Underruns() uint64 {
+	return hwa.underruns
 }
 
-func incbufferidx() {
-	hwa.bufidx = (hwa.bufidx + 1) % len(hwa.buffers)
-}
-
-func unqueue() error {
-	hwa.source.UnqueueBuffers([]al.Buffer{hwa.buffers[hwa.bufidx]})
-	if code := al.Error(); code != 0 {
-		return fmt.Errorf("snd/al: unqueue buffer failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
+func TickAverge() time.Duration {
+	if hwa.tickcount == 0 {
+		return 0
 	}
-	return nil
-}
-
-func queue() error {
-	hwa.in.Prepare()
-	for i, x := range hwa.in.Output() {
-		n := int16(math.MaxInt16 * x)
-		hwa.out[2*i] = byte(n)
-		hwa.out[2*i+1] = byte(n >> 8)
-	}
-
-	hwa.buffers[hwa.bufidx].BufferData(hwa.format, hwa.out, int32(hwa.in.SampleRate()))
-	if code := al.Error(); code != 0 {
-		return fmt.Errorf("snd/al: buffer data failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
-	}
-
-	hwa.source.QueueBuffers([]al.Buffer{hwa.buffers[hwa.bufidx]})
-	if code := al.Error(); code != 0 {
-		return fmt.Errorf("snd/al: queue buffer failed [id=%v] [err=%v] [tick=%v]\n", hwa.bufidx, code, hwa.tickcount)
-	}
-
-	return nil
+	return hwa.ticktime / time.Duration(hwa.tickcount)
 }

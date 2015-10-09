@@ -127,6 +127,7 @@ func onStart(ctx gl.Context) {
 	}
 
 	// piano graphics
+	// TODO instead of a buffer, increase period size of piano, duh
 	piano = NewPiano()
 	pianobuf = snd.NewBuffer(4, piano)
 	mix.AppendQuiet(pianobuf)
@@ -134,7 +135,7 @@ func onStart(ctx gl.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	// pianowf.Align(-0.999)
+	pianowf.Align(-0.999)
 
 	// experimental bits
 	somemod = snd.Osc(harm, 2, nil)
@@ -245,10 +246,7 @@ func main() {
 		logdbg := time.NewTicker(time.Second)
 		go func() {
 			for range logdbg.C {
-				buflen, underruns := al.BufStats()
-				preptime, prepcalls := al.PrepStats()
-				prepavg := preptime / time.Duration(prepcalls)
-				log.Printf("fps=%-5v underruns=%-6v prepavg=%-15s buflen=%v\n", fps, underruns, prepavg, buflen)
+				log.Printf("fps=%-5v underruns=%-6v tickavg=%-15s buflen=%v\n", fps, al.Underruns(), al.TickAverge(), al.BufLen())
 			}
 		}()
 
@@ -277,7 +275,6 @@ func main() {
 			case size.Event:
 				sz = ev
 			case paint.Event:
-				// al.Tick()
 				onPaint(glctx)
 				a.Publish()
 				if visible {
