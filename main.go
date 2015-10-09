@@ -16,7 +16,7 @@ import (
 	"golang.org/x/mobile/gl"
 )
 
-const buffers = 8
+const buffers = 2
 
 var (
 	sz size.Event
@@ -49,6 +49,14 @@ type Key struct {
 	release time.Duration
 }
 
+func NewKeyOsc(freq float64) *Key {
+	osc := snd.Osc(harm, freq, nil)
+	instr := snd.NewInstrument(osc)
+	instr.Manage(osc)
+	instr.Off()
+	return &Key{instr, nil, 0}
+}
+
 func NewKey(freq float64) *Key {
 	// adsr release and also offin value for instrument
 	release := 350 * ms
@@ -76,14 +84,20 @@ func NewKey(freq float64) *Key {
 }
 
 func (key *Key) Press() {
-	key.adsr.Sustain()
-	key.adsr.Restart()
+	if key.adsr != nil {
+		key.adsr.Sustain()
+		key.adsr.Restart()
+	}
 	key.On()
 }
 
 func (key *Key) Release() {
-	key.adsr.Release()
-	key.OffIn(key.release)
+	if key.adsr != nil {
+		key.adsr.Release()
+		key.OffIn(key.release)
+	} else {
+		key.Off()
+	}
 }
 
 func onStart(ctx gl.Context) {
@@ -101,7 +115,7 @@ func onStart(ctx gl.Context) {
 	mix = snd.NewMixer()
 	for i := range keys {
 		// notes[51] is Major C
-		keys[i] = NewKey(notes[51+i])
+		keys[i] = NewKeyOsc(notes[51+i])
 		mix.Append(keys[i])
 	}
 	mixbuf := snd.NewBuffer(4, snd.NewFilter(1800, 250, mix))
@@ -231,9 +245,10 @@ func main() {
 		logdbg := time.NewTicker(time.Second)
 		go func() {
 			for range logdbg.C {
+				buflen, underruns := al.BufStats()
 				preptime, prepcalls := al.PrepStats()
 				prepavg := preptime / time.Duration(prepcalls)
-				log.Printf("fps=%-5v underruns=%-6v prepavg=%-15s preptime=%-18s prepcalls=%v\n", fps, al.Underruns(), prepavg, preptime, prepcalls)
+				log.Printf("fps=%-5v underruns=%-6v prepavg=%-15s buflen=%v\n", fps, underruns, prepavg, buflen)
 			}
 		}()
 
@@ -262,6 +277,7 @@ func main() {
 			case size.Event:
 				sz = ev
 			case paint.Event:
+				// al.Tick()
 				onPaint(glctx)
 				a.Publish()
 				if visible {
