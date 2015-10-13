@@ -1,25 +1,25 @@
 package snd
 
 // ring modulator
-type Ring struct {
-	*snd
+type ring struct {
+	*mono
 	in0, in1 Sound
 }
 
-func NewRing(in0, in1 Sound) *Ring {
-	return &Ring{
-		snd: newSnd(nil),
-		in0: in0,
-		in1: in1,
+func Ring(in0, in1 Sound) Sound {
+	return &ring{
+		mono: newmono(nil),
+		in0:  in0,
+		in1:  in1,
 	}
 }
 
-func (ring *Ring) Prepare() {
-	ring.in0.Prepare()
-	ring.in1.Prepare()
+func (ring *ring) Prepare(tc uint64) {
+	ring.in0.Prepare(tc)
+	ring.in1.Prepare(tc)
 	for i := range ring.out {
-		if ring.enabled {
-			ring.out[i] = ring.in0.Output()[i] * ring.in1.Output()[i]
+		if ring.off {
+			ring.out[i] = ring.in0.Samples()[i] * ring.in1.Samples()[i]
 		} else {
 			ring.out[i] = 0
 		}

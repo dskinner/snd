@@ -4,46 +4,31 @@ package snd
 // TODO perhaps this class is unnecessary, any sound could be a mixer
 // if you can set multiple inputs, but might get confusing.
 type Mixer struct {
-	*snd
-
-	ins    []Sound
-	quiets []Sound
+	*mono
+	ins []Sound
 }
 
 func NewMixer(ins ...Sound) *Mixer {
-	m := &Mixer{
-		snd: newSnd(nil),
-		ins: ins,
+	return &Mixer{
+		mono: newmono(nil),
+		ins:  ins,
 	}
-	return m
 }
 
 func (m *Mixer) Append(s Sound) {
 	m.ins = append(m.ins, s)
 }
 
-// TODO temp method
-func (m *Mixer) AppendQuiet(s Sound) {
-	m.quiets = append(m.quiets, s)
-}
-
-func (m *Mixer) Prepare() {
-	m.snd.Prepare()
-
+func (m *Mixer) Prepare(tc uint64) {
 	for _, in := range m.ins {
-		in.Prepare()
-	}
-
-	// TODO tmp
-	for _, quiet := range m.quiets {
-		quiet.Prepare()
+		in.Prepare(tc)
 	}
 
 	for i := range m.out {
 		m.out[i] = 0
-		if m.enabled {
+		if !m.off {
 			for _, in := range m.ins {
-				m.out[i] += in.Output()[i]
+				m.out[i] += in.Sample(i)
 			}
 		}
 	}

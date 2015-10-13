@@ -31,8 +31,10 @@ type Piano struct {
 func NewPiano() *Piano {
 	wf := &Piano{}
 	wf.Sound = snd.Mono(nil)
+	// wf.Sound.SetAmp(1, nil)
+	wf.Sound.SetBufferLen(1024)
 
-	wf.keys = make([]float64, wf.Sound.FrameLen()*4)
+	wf.keys = make([]float64, wf.Sound.BufferLen())
 
 	space := 16
 
@@ -98,11 +100,11 @@ func (wf *Piano) KeyAt(ev touch.Event, sz size.Event) int {
 	}
 }
 
-func (wf *Piano) Prepare() {
-	wf.Sound.Prepare()
-	out := wf.Sound.Output()
+func (wf *Piano) Prepare(tc uint64) {
+	wf.Sound.Prepare(tc)
+	out := wf.Sound.Samples()
 	for i := range out {
-		out[i] = wf.Sound.Amp(i) * wf.keys[wf.idx]
+		out[i] = wf.keys[wf.idx] // wf.Sound.Amp(i) * wf.keys[wf.idx]
 		wf.idx = (wf.idx + 1) % len(wf.keys)
 	}
 }

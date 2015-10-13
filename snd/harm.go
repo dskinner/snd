@@ -1,6 +1,9 @@
 package snd
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // TODO for getting max abs, maybe just outside of loop (benches faster)
 // since i'm pretty sure we can't have NaN or -+Inf
@@ -24,6 +27,9 @@ type Harm []float64
 func (h *Harm) Eval(num int, phase float64, fn HarmFunc) {
 	if *h == nil {
 		*h = make(Harm, DefaultHarmLen)
+	}
+	if n := len(*h); n&(n-1) != 0 {
+		panic(fmt.Errorf("Harm len(%v) not a power of 2", n))
 	}
 	fn(*h, num, phase)
 }

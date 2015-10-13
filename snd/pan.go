@@ -38,21 +38,23 @@ func getpanpos(amt float64, ch int) float64 {
 }
 
 type Pan struct {
-	*stereosnd
+	*stereo
 	amt float64
 }
 
 func NewPan(amt float64, in Sound) *Pan {
-	return &Pan{newStereosnd(in), amt}
+	return &Pan{newstereo(in), amt}
 }
 
 // SetAmount takes an input pans it across two outputs by an amount given as -1 to 1.
 func (p *Pan) SetAmount(amt float64) { p.amt = amt }
 
 // Prepare interleaves the left and right channels.
-func (p *Pan) Prepare() {
-	p.stereosnd.Prepare()
-	for i, x := range p.in.Output() {
+func (p *Pan) Prepare(tc uint64) {
+	if p.in != nil {
+		p.in.Prepare(tc)
+	}
+	for i, x := range p.in.Samples() {
 		p.l.out[i] = x * getpanpos(p.amt, 0)
 		p.r.out[i] = x * getpanpos(p.amt, 1)
 		p.out[i*2] = p.l.out[i]

@@ -3,30 +3,14 @@ package snd
 import "time"
 
 type Instrument struct {
-	*snd
-
-	snds []Sound
-
+	*mono
 	// time in samples
 	count float64
 	offat float64
 }
 
 func NewInstrument(in Sound) *Instrument {
-	return &Instrument{
-		snd: newSnd(in),
-	}
-}
-
-func (inst *Instrument) Manage(s Sound) {
-	inst.snds = append(inst.snds, s)
-}
-
-func (inst *Instrument) Off() {
-	inst.enabled = false
-	for _, s := range inst.snds {
-		s.SetEnabled(false)
-	}
+	return &Instrument{mono: newmono(in)}
 }
 
 func (inst *Instrument) OffIn(d time.Duration) {
@@ -35,22 +19,26 @@ func (inst *Instrument) OffIn(d time.Duration) {
 
 func (inst *Instrument) On() {
 	inst.offat = -1 // cancels any previous offat if not reached
-	inst.enabled = true
-	for _, s := range inst.snds {
-		s.SetEnabled(true)
-	}
+	inst.mono.On()
 }
 
-func (inst *Instrument) Prepare() {
-	inst.snd.Prepare()
+func (inst *Instrument) Prepare(tc uint64) {
+	if inst.tc == tc {
+		return
+	}
+	inst.tc = tc
+
 	for i := range inst.out {
-		if inst.enabled {
-			inst.out[i] = inst.in.Output()[i]
-		} else {
+		if inst.off {
 			inst.out[i] = 0
+		} else {
+			if inst.in != nil {
+				inst.in.Prepare(tc)
+			}
+			inst.out[i] = inst.in.Samples()[i]
 		}
-		// TODO overflows at some point i suppose
-		inst.count++
+
+		inst.count++ // TODO overflows at some point i suppose
 		if inst.count == inst.offat {
 			inst.Off()
 		}

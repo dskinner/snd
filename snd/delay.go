@@ -2,92 +2,165 @@ package snd
 
 import "time"
 
-type Delay struct {
-	*snd
-	dur  float64
-	dout []float64
+type bufc struct {
+	xs   []float64
+	r, w int
+}
 
-	wpos, rpos int
+func newbufc(n int) *bufc { return &bufc{make([]float64, n), 1, 0} }
+
+func (b *bufc) read() (x float64) {
+	x = b.xs[b.r]
+	b.r++
+	if b.r == len(b.xs) {
+		b.r = 0
+	}
+	return
+}
+
+func (b *bufc) write(x float64) (end bool) {
+	b.xs[b.w] = x
+	b.w++
+	end = b.w == len(b.xs)
+	if end {
+		b.w = 0
+	}
+	return
+}
+
+type Delay struct {
+	*mono
+	line *bufc
 }
 
 func NewDelay(dur time.Duration, in Sound) *Delay {
-	delay := &Delay{
-		snd:  newSnd(in),
-		wpos: 0,
-		rpos: 1,
-	}
-
-	delay.dur = float64(dur) / float64(time.Second)
-	delay.dout = make([]float64, int(in.SampleRate()*delay.dur))
-	return delay
+	// TODO treat as time.Millisecond and then number of samples needed would be
+	// 1/(dur/time.Millisecond)
+	// probably throw away duration after that can be worked out as
+	// len(dout) / in.Channels() / in.SampleRate()
+	// ... maybe time to add dat Frames method!
+	n := int(in.SampleRate() * float64(dur) / float64(time.Second))
+	return &Delay{newmono(in), newbufc(n)}
 }
 
-func (d *Delay) Prepare() {
-	d.snd.Prepare()
+func (d *Delay) Prepare(tc uint64) {
 	for i := range d.out {
-		if d.enabled {
-			// read
-			d.out[i] = d.dout[d.rpos]
-			d.rpos = (d.rpos + 1) % len(d.dout)
-			// write
-			d.dout[d.wpos] = d.in.Output()[i]
-			d.wpos = (d.wpos + 1) % len(d.dout)
-		} else {
+		if d.off {
 			d.out[i] = 0
+		} else {
+			if d.in != nil {
+				d.in.Prepare(tc)
+			}
+			d.out[i] = d.line.read()
+			d.line.write(d.in.Sample(i))
 		}
 	}
 }
 
 type Comb struct {
-	*Delay
+	*mono
 	gain float64
+	line *bufc
 }
 
-func NewComb(dur time.Duration, gain float64, in Sound) *Comb {
-	return &Comb{NewDelay(dur, in), gain}
+func NewComb(gain float64, dur time.Duration, in Sound) *Comb {
+	n := int(in.SampleRate() * float64(dur) / float64(time.Second))
+	return &Comb{newmono(in), gain, newbufc(n)}
 }
 
-func (c *Comb) Prepare() {
-	c.snd.Prepare()
-	for i := range c.out {
-		if c.enabled {
-			// read
-			c.out[i] = c.dout[c.rpos]
-			c.rpos = (c.rpos + 1) % len(c.dout)
-			// write
-			c.dout[c.wpos] = c.in.Output()[i] + c.out[i]*c.gain
-			c.wpos = (c.wpos + 1) % len(c.dout)
+func (cmb *Comb) Prepare(tc uint64) {
+	if cmb.tc == tc {
+		return
+	}
+	cmb.tc = tc
+
+	for i := range cmb.out {
+		if cmb.off {
+			cmb.out[i] = 0
 		} else {
-			c.out[i] = 0
+			if cmb.in != nil {
+				cmb.in.Prepare(tc)
+			}
+			cmb.out[i] = cmb.line.read()
+			cmb.line.write(cmb.in.Sample(i) + cmb.out[i]*cmb.gain)
 		}
 	}
 }
 
-type Tap struct {
-	*snd
-	delay *Delay
-	dur   float64
-	rpos  int
+// type Tap struct {
+// *mono
+// delay *Delay
+// dur   float64
+// rpos  int
+// }
+
+// func NewTap(dur time.Duration, delay *Delay) *Tap {
+// d := float64(dur) / float64(time.Second)
+// if d > delay.dur {
+// d = delay.dur
+// }
+// return &Tap{
+// mono:  newmono(delay),
+// dur:   d,
+// delay: delay,
+// rpos:  delay.rpos + int(float64(len(delay.dout))-(d*delay.SampleRate())),
+// }
+// }
+
+// func (tap *Tap) Prepare(tc uint64) {
+// if tap.in != nil {
+// tap.in.Prepare(tc)
+// }
+// for i := range tap.out {
+// read
+// tap.out[i] = tap.delay.dout[tap.rpos]
+// tap.rpos = (tap.rpos + 1) % len(tap.delay.dout)
+// }
+// }
+
+type Looper interface {
+	Sound
+	Record()
 }
 
-func NewTap(dur time.Duration, delay *Delay) *Tap {
-	d := float64(dur) / float64(time.Second)
-	if d > delay.dur {
-		d = delay.dur
-	}
-	return &Tap{
-		snd:   newSnd(delay),
-		dur:   d,
-		delay: delay,
-		rpos:  delay.rpos + int(float64(len(delay.dout))-(d*delay.SampleRate())),
-	}
+func Loop(dur time.Duration, in Sound) Looper {
+	lp := &loop{mono: newmono(in)}
+	lp.dur = float64(dur) / float64(time.Second)
+	lp.dout = make([]float64, int(in.SampleRate()*lp.dur))
+	return lp
 }
 
-func (tap *Tap) Prepare() {
-	tap.snd.Prepare()
-	for i := range tap.out {
-		// read
-		tap.out[i] = tap.delay.dout[tap.rpos]
-		tap.rpos = (tap.rpos + 1) % len(tap.delay.dout)
+type loop struct {
+	*mono
+	dur        float64
+	dout       []float64
+	wpos, rpos int
+
+	count int
+	rec   bool
+}
+
+func (lp *loop) Record() {
+	lp.wpos = 0
+	lp.rec = true
+}
+
+func (lp *loop) Prepare(tc uint64) {
+	for i := range lp.out {
+		if lp.rec {
+			if lp.count < len(lp.dout) {
+				// write
+				lp.dout[lp.wpos] = lp.in.Samples()[i]
+				lp.wpos = (lp.wpos + 1) % len(lp.dout)
+				lp.count++
+			} else {
+				lp.rpos = 0
+				lp.rec = false
+			}
+		} else {
+			// read
+			lp.out[i] = lp.dout[lp.rpos]
+			lp.rpos = (lp.rpos + 1) % len(lp.dout)
+		}
 	}
 }

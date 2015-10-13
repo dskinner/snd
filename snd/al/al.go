@@ -60,6 +60,8 @@ type openal struct {
 	underruns uint64
 	ticktime  time.Duration
 	tickcount uint64
+
+	tc uint64
 }
 
 func OpenDevice(buflen int) error {
@@ -91,7 +93,7 @@ func AddSource(in snd.Sound) error {
 		return fmt.Errorf("snd/al: can't handle input with channels(%v)", in.Channels())
 	}
 	hwa.in = in
-	hwa.out = make([]byte, in.FrameLen()*in.Channels()*2)
+	hwa.out = make([]byte, in.BufferLen()*2)
 
 	s := al.GenSources(1)
 	if code := al.Error(); code != 0 {
@@ -106,7 +108,7 @@ func AddSource(in snd.Sound) error {
 }
 
 func Latency() time.Duration {
-	return time.Duration(float64(hwa.in.FrameLen()) / hwa.in.SampleRate() * float64(time.Second) * float64(hwa.buf.size))
+	return time.Duration(float64(hwa.in.BufferLen()) / hwa.in.SampleRate() * float64(time.Second) * float64(hwa.buf.size))
 }
 
 func Start() {
@@ -115,7 +117,7 @@ func Start() {
 	}
 	hwa.quit = make(chan struct{})
 	go func() {
-		tick := time.Tick(Latency()) // / 2) // TODO i want to tick at half the rate!!!! or ill risk overruns all the time. this is for debugging only
+		tick := time.Tick(Latency() / 2)
 		for {
 			select {
 			case <-hwa.quit:
@@ -144,8 +146,15 @@ func Tick() {
 	bufs := hwa.buf.Get()
 
 	for _, buf := range bufs {
-		hwa.in.Prepare()
-		for i, x := range hwa.in.Output() {
+		hwa.tc++
+		hwa.in.Prepare(hwa.tc)
+		for i, x := range hwa.in.Samples() {
+			// clip
+			if x > 1 {
+				x = 1
+			} else if x < -1 {
+				x = -1
+			}
 			n := int16(math.MaxInt16 * x)
 			hwa.out[2*i] = byte(n)
 			hwa.out[2*i+1] = byte(n >> 8)

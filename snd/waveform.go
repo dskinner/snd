@@ -14,13 +14,17 @@ import (
 // go mobile gl to build snd (increasing complexity of portability)
 // so move this to a subpkg requiring explicit importing.
 
+// TODO should remove *Buffer and move that functionality directly into here.
 type Waveform struct {
+	Sound
+
 	program  gl.Program
 	position gl.Attrib
 	color    gl.Uniform
 	buf      gl.Buffer
 
-	in *Buffer
+	outs    [][]float64
+	samples []float64
 
 	align    bool
 	alignamp float64
@@ -32,11 +36,15 @@ type Waveform struct {
 }
 
 // TODO just how many samples do we want/need to display something useful?
-func NewWaveform(ctx gl.Context, in *Buffer) (*Waveform, error) {
-	wf := &Waveform{
-		in:      in,
-		aligned: make([]float64, len(in.samples)),
+func NewWaveform(ctx gl.Context, n int, in Sound) (*Waveform, error) {
+	wf := &Waveform{Sound: in}
+
+	wf.outs = make([][]float64, n)
+	for i := range wf.outs {
+		wf.outs[i] = make([]float64, in.BufferLen()*in.Channels())
 	}
+	wf.samples = make([]float64, in.BufferLen()*in.Channels()*n)
+	wf.aligned = make([]float64, in.BufferLen()*in.Channels()*n)
 
 	wf.verts = make([]float32, len(wf.aligned)*3)
 	wf.data = make([]byte, len(wf.verts)*4)
@@ -62,13 +70,35 @@ func (wf *Waveform) Align(amp float64) {
 	wf.alignamp = amp
 }
 
-// TODO need to really consider just how a Waveform will interact with underlying data.
-// It could possibly act as some kind of pass-through that *looks* like a Sound.
-// Maybe that could be done by embedding input?
-func (wf *Waveform) Prepare() {
-	// don't actually prepare input, input should already be prepared and this should
-	// fit into that lifecycle some how.
+func (wf *Waveform) Prepare(tc uint64) {
+	if wf.Sound != nil {
+		wf.Sound.Prepare(tc)
+	}
 
+	// cycle outputs
+	out := wf.outs[0]
+	for i := 0; i+1 < len(wf.outs); i++ {
+		wf.outs[i] = wf.outs[i+1]
+	}
+	for i, x := range wf.Sound.Samples() {
+		out[i] = x
+	}
+	wf.outs[len(wf.outs)-1] = out
+
+	//
+	for i, out := range wf.outs {
+		idx := i * len(out)
+		sl := wf.samples[idx : idx+len(out)]
+		for j, x := range out {
+			sl[j] = x
+		}
+	}
+
+	// for i, out := range wf.outs {
+	// for j, x := range out {
+	// wf.samples[(i+1)*j] = x
+	// }
+	// }
 }
 
 func (wf *Waveform) Paint(ctx gl.Context, xps, yps, width, height float32) {
@@ -77,12 +107,13 @@ func (wf *Waveform) Paint(ctx gl.Context, xps, yps, width, height float32) {
 	// TODO assumes mono
 
 	var (
-		xstep float32 = width / float32(len(wf.in.samples))
+		xstep float32 = width / float32(len(wf.samples))
 		xpos  float32 = xps
 	)
 
-	samples := wf.in.Samples()
+	samples := wf.samples[:]
 
+	// TODO check out https://en.wikipedia.org/wiki/Matched_filter
 	// TODO would be nice if Buffer could return samples matching a pattern
 	// and get rid of this logic in here
 	if wf.align {
@@ -108,6 +139,13 @@ func (wf *Waveform) Paint(ctx gl.Context, xps, yps, width, height float32) {
 	}
 
 	for i, x := range samples {
+		// make user aware of clipping, even if inaudible.
+		if x > 1 {
+			x = 1
+		} else if x < -1 {
+			x = -1
+		}
+
 		wf.verts[i*3] = float32(xpos)
 		wf.verts[i*3+1] = yps + (height * float32((x+1)/2))
 		wf.verts[i*3+2] = 0

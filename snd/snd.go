@@ -44,7 +44,9 @@ round, as is standard in Java ("big endian" byte order).
 
 const (
 	DefaultSampleRate     float64 = 44100
-	DefaultFrameBufferLen int     = 256 // TODO maybe just call SamplePeriodLen
+	DefaultSampleBitDepth int     = 16 // TODO not currently used for anything
+	DefaultBufferLen      int     = 256
+	DefaultAmpMult        float64 = 0.31622776601683794 // -10dB
 )
 
 const epsilon = 0.0001
@@ -57,6 +59,7 @@ func equaleps(a, b float64, eps float64) bool {
 	return (a-b) < eps && (b-a) < eps
 }
 
+// Decibel is relative to full scale; anything over 0dB will clip.
 type Decibel float64
 
 // Amp converts dB to amplitude multiplier.
@@ -68,182 +71,134 @@ func (db Decibel) String() string {
 	return fmt.Sprintf("%vdB", float64(db))
 }
 
+type Hertz float64
+
+func (hz Hertz) Angular() float64 {
+	return twopi * float64(hz)
+}
+
+func (hz Hertz) Normalized(sr float64) float64 {
+	return hz.Angular() / sr
+}
+
 type Sound interface {
 	SampleRate() float64
-	// TODO FrameLen feels ambigious considerings channels is the length of samples in a frame,
-	// so frame length almost sounds like number of channels. Consider just calling Frames? NFrames?
-	// Or simply replace with Samples() or SamplesLen() which is less ambigious. Then Frames() can be
-	// Samples() / Channels(). Or, don't provide either or have Samples() replace Output(), len(Samples())
-	// where Samples() is only returning a slice pointer anyway so its cheap and concise.
-	FrameLen() int
 	Channels() int
 
-	Amp(sample int) float64
-	SetAmp(mult float64, mod Sound)
+	// BufferLen returns size of internal buffer in samples.
+	BufferLen() int
+	SetBufferLen(int)
+
+	// Frames returns BufferLen() / Channels()
+	// Frames() int
 
 	// Prepare is when a sound should prepare sample frames.
-	//
-	// TODO consider passing additional params regarding global state.
-	Prepare()
+	Prepare(uint64)
 
-	// Output returns prepared sample frames.
-	Output() []float64
-	OutputAt(pos int) float64
+	// TODO maybe ditch this, point of architecture is you can't mess
+	// with an input's output but a slice exposes that. Or, discourage
+	// use by making a copy of data.
+	// Samples returns prepared samples slice.
+	Samples() []float64
 
-	Enabled() bool
-	SetEnabled(bool)
+	// Sample returns the sample at pos mod BufferLen().
+	Sample(pos int) float64
+
+	IsOff() bool
+	Off()
+	On()
 
 	// TODO maybe i want this, maybe I dont
 	// Input() Sound
 	// SetInput(Sound)
 }
 
-func Mono(in Sound) Sound {
-	return newSnd(in)
-}
+func Mono(in Sound) Sound { return newmono(in) }
 
-func Stereo(in Sound) Sound {
-	return newStereosnd(in)
-}
+func Stereo(in Sound) Sound { return newstereo(in) }
 
 // TODO this is just an example of something I may or may not want
 // if i enable Input() and SetInput() on Sound and generify all implementations.
 type StereoSound interface {
 	Sound
 	Left() Sound
-	// TODO maybe i need to consider these inputs as Samplers instead of Sounds
 	SetLeft(Sound)
 	Right() Sound
 	SetRight(Sound)
 }
 
-// TODO rename to Mono
-type snd struct {
-	sr float64
-
-	amp    float64
-	ampmod Sound
-
-	// TODO how about:
-	// phase float64
-	// group float64
-
+type mono struct {
+	sr  float64
 	in  Sound
 	out []float64
-
-	enabled bool
+	tc  uint64
+	off bool
 }
 
-func newSnd(in Sound) *snd {
-	return &snd{
-		sr:      DefaultSampleRate,
-		amp:     1,
-		in:      in,
-		out:     make([]float64, DefaultFrameBufferLen),
-		enabled: true,
+func newmono(in Sound) *mono {
+	return &mono{
+		sr:  DefaultSampleRate,
+		in:  in,
+		out: make([]float64, DefaultBufferLen),
 	}
 }
 
-func (s *snd) SampleRate() float64 { return s.sr }
-func (s *snd) FrameLen() int       { return len(s.out) / s.Channels() }
-func (s *snd) Channels() int       { return 1 }
-
-func (s *snd) Amp(i int) float64 {
-	if s.ampmod != nil {
-		return s.amp * s.ampmod.Output()[i]
+func (s *mono) SampleRate() float64  { return s.sr }
+func (s *mono) Samples() []float64   { return s.out }
+func (s *mono) Sample(i int) float64 { return s.out[i&(len(s.out)-1)] }
+func (s *mono) Channels() int        { return 1 }
+func (s *mono) BufferLen() int       { return len(s.out) }
+func (s *mono) SetBufferLen(n int) {
+	if n == 0 || n&(n-1) != 0 {
+		panic(fmt.Errorf("snd: SetBufferLen(%v) not a power of 2", n))
 	}
-	return s.amp
+	s.out = make([]float64, n)
+}
+func (s *mono) IsOff() bool { return s.off }
+func (s *mono) Off()        { s.off = true }
+func (s *mono) On()         { s.off = false }
+
+//
+func (s *mono) SetInput(in Sound) { s.in = in }
+
+func (s *mono) Prepare(tc uint64) {
 }
 
-func (s *snd) SetAmp(amp float64, ampmod Sound) {
-	s.amp = amp
-	s.ampmod = ampmod
-}
-
-func (s *snd) SetInput(in Sound) {
-	s.in = in
-}
-
-func (s *snd) Output() []float64 {
-	return s.out
-}
-
-// TODO start using this where appropriate
-func (s *snd) OutputAt(i int) float64 {
-	return s.out[i%len(s.out)]
-}
-
-func (s *snd) Prepare() {
-	// if s.enabled {
-	if s.in != nil {
-		s.in.Prepare()
-	}
-	if s.ampmod != nil {
-		s.ampmod.Prepare()
-	}
-	// }
-}
-
-func (s *snd) Enabled() bool {
-	return s.enabled
-}
-
-func (s *snd) SetEnabled(b bool) {
-	s.enabled = b
-}
-
-type stereosnd struct {
-	l, r *snd
+type stereo struct {
+	l, r *mono
 	in   Sound
 	out  []float64
 }
 
-func newStereosnd(in Sound) *stereosnd {
-	return &stereosnd{
-		l:  newSnd(nil),
-		r:  newSnd(nil),
-		in: in,
-		// framebufferlen * channels
-		out: make([]float64, DefaultFrameBufferLen*2),
+func newstereo(in Sound) *stereo {
+	return &stereo{
+		l:   newmono(nil),
+		r:   newmono(nil),
+		in:  in,
+		out: make([]float64, DefaultBufferLen*2),
 	}
 }
 
-func (s *stereosnd) SampleRate() float64 { return s.l.sr }
-func (s *stereosnd) FrameLen() int       { return len(s.out) / s.Channels() }
-func (s *stereosnd) Channels() int       { return 2 }
-
-func (s *stereosnd) Amp(i int) float64 {
-	// TODO just sum?
-	return (s.l.Amp(i) + s.r.Amp(i)) / 2
+func (s *stereo) SampleRate() float64  { return s.l.sr }
+func (s *stereo) Samples() []float64   { return s.out }
+func (s *stereo) Sample(i int) float64 { return s.out[i%len(s.out)] }
+func (s *stereo) Channels() int        { return 2 }
+func (s *stereo) BufferLen() int       { return len(s.out) }
+func (s *stereo) SetBufferLen(n int) {
+	if n == 0 || n&(n-1) != 0 {
+		panic(fmt.Errorf("snd: SetBufferLen(%v) not a power of 2", n))
+	}
+	s.out = make([]float64, n*2)
 }
+func (s *stereo) IsOff() bool { return s.l.off || s.r.off }
+func (s *stereo) Off()        { s.l.off, s.r.off = false, false }
+func (s *stereo) On()         { s.l.off, s.r.off = true, true }
 
-func (s *stereosnd) SetAmp(amp float64, ampmod Sound) {
-	s.l.SetAmp(amp, ampmod)
-	s.r.SetAmp(amp, ampmod)
-}
-
-func (s *stereosnd) Enabled() bool {
-	return s.l.enabled || s.r.enabled
-}
-
-func (s *stereosnd) SetEnabled(b bool) {
-	s.l.enabled = b
-	s.r.enabled = b
-}
-
-func (s *stereosnd) Prepare() {
-	// TODO should i do this? Only relevant is SetLeft and SetRight where exposed here
+func (s *stereo) Prepare(tc uint64) {
+	// TODO should i do this? Only relevant if SetLeft and SetRight where exposed here
 	// s.l.Prepare()
 	// s.r.Prepare()
-	if s.in != nil {
-		s.in.Prepare()
-	}
-}
-
-func (s *stereosnd) Output() []float64 {
-	return s.out
-}
-
-func (s *stereosnd) OutputAt(i int) float64 {
-	return s.out[i%len(s.out)]
+	// if s.in != nil {
+	// s.in.Prepare()
+	// }
 }
