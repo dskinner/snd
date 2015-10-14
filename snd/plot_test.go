@@ -114,3 +114,19 @@ func TestPlotADSR(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestLowPass(t *testing.T) {
+	plt := newplttr()
+
+	mix0 := NewMixer(Osc(Sine(), 520, nil), Osc(Sine(), 440, nil))
+	plt.add("Mix Sine [520Hz, 440Hz]", mix0)
+
+	mix1 := NewMixer(Osc(Sine(), 520, nil), Osc(Sine(), 440, nil))
+	lp := NewLowPass(500, mix1)
+	plt.add("Low Pass [500Hz]", lp)
+
+	plt.proc(4)
+	if err := plt.save("lowpass.png"); err != nil {
+		t.Fatal(err)
+	}
+}
