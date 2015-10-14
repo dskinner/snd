@@ -92,8 +92,15 @@ type Sound interface {
 	// Frames returns BufferLen() / Channels()
 	// Frames() int
 
-	// Prepare is when a sound should prepare sample frames.
-	Prepare(uint64)
+	// Prepare is when a sound should prepare sample frames. returns true if ok to continue.
+	// TODO actually probably possible to completely avoid all the ok = ...; !ok by just making
+	// this a different method that no one is overriding ...
+	// that also avoids all the times code ignores the ok
+	// basically, just have said new method be proxy that calls Prepare(uint64) or maybe just go back
+	// to method Do(uint64) and have Prepare be proxy.
+	// would be nice to have that be where dependent prepares are called, like Osc has so many
+	// after prepares are done, i suppose all output is actually parallelizable at that point ... hmmm, is it?
+	Prepare(uint64) (ok bool)
 
 	// TODO maybe ditch this, point of architecture is you can't mess
 	// with an input's output but a slice exposes that. Or, discourage
@@ -161,13 +168,16 @@ func (s *mono) On()         { s.off = false }
 //
 func (s *mono) SetInput(in Sound) { s.in = in }
 
-func (s *mono) Prepare(tc uint64) {
+func (s *mono) Prepare(tc uint64) (ok bool) {
+	ok, s.tc = s.tc != tc, tc
+	return
 }
 
 type stereo struct {
 	l, r *mono
 	in   Sound
 	out  []float64
+	tc   uint64
 }
 
 func newstereo(in Sound) *stereo {
@@ -194,11 +204,7 @@ func (s *stereo) IsOff() bool { return s.l.off || s.r.off }
 func (s *stereo) Off()        { s.l.off, s.r.off = false, false }
 func (s *stereo) On()         { s.l.off, s.r.off = true, true }
 
-func (s *stereo) Prepare(tc uint64) {
-	// TODO should i do this? Only relevant if SetLeft and SetRight where exposed here
-	// s.l.Prepare()
-	// s.r.Prepare()
-	// if s.in != nil {
-	// s.in.Prepare()
-	// }
+func (s *stereo) Prepare(tc uint64) (ok bool) {
+	ok, s.tc = s.tc != tc, tc
+	return
 }

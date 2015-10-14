@@ -70,10 +70,13 @@ func (wf *Waveform) Align(amp float64) {
 	wf.alignamp = amp
 }
 
-func (wf *Waveform) Prepare(tc uint64) {
-	if wf.Sound != nil {
-		wf.Sound.Prepare(tc)
+func (wf *Waveform) Prepare(tc uint64) (ok bool) {
+	if ok = wf.Sound.Prepare(tc); !ok {
+		return
 	}
+	// if wf.Sound != nil {
+	// wf.Sound.Prepare(tc)
+	// }
 
 	// cycle outputs
 	out := wf.outs[0]
@@ -99,6 +102,8 @@ func (wf *Waveform) Prepare(tc uint64) {
 	// wf.samples[(i+1)*j] = x
 	// }
 	// }
+
+	return ok
 }
 
 func (wf *Waveform) Paint(ctx gl.Context, xps, yps, width, height float32) {

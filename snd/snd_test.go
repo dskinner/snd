@@ -12,7 +12,7 @@ func newunit() *unit {
 	return u
 }
 
-func (u *unit) Prepare(tc uint64) {}
+func (u *unit) Prepare(tc uint64) bool { return true }
 
 func TestDecibel(t *testing.T) {
 	tests := []struct {

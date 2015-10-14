@@ -22,12 +22,13 @@ func (inst *Instrument) On() {
 	inst.mono.On()
 }
 
-func (inst *Instrument) Prepare(tc uint64) {
-	if inst.tc == tc {
+func (inst *Instrument) Prepare(tc uint64) (ok bool) {
+	if ok = inst.mono.Prepare(tc); !ok {
 		return
 	}
-	inst.tc = tc
-
+	if inst.in != nil {
+		inst.in.Prepare(tc)
+	}
 	for i := range inst.out {
 		if inst.off {
 			inst.out[i] = 0
@@ -43,4 +44,5 @@ func (inst *Instrument) Prepare(tc uint64) {
 			inst.Off()
 		}
 	}
+	return
 }

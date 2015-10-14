@@ -75,11 +75,14 @@ func (osc *osc) SetPhase(amt float64, mod Sound) {
 	osc.phasemod = mod
 }
 
-func (osc *osc) Prepare(tc uint64) {
-	if tc == osc.tc {
+func (osc *osc) Prepare(tc uint64) (ok bool) {
+	// if tc == osc.tc {
+	// return
+	// }
+	// osc.tc = tc
+	if ok = osc.mono.Prepare(tc); !ok {
 		return
 	}
-	osc.tc = tc
 
 	if osc.freqmod != nil {
 		osc.freqmod.Prepare(tc)
@@ -121,4 +124,6 @@ func (osc *osc) Prepare(tc uint64) {
 			osc.idx += freq * f
 		}
 	}
+
+	return ok
 }

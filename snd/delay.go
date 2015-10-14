@@ -2,6 +2,7 @@ package snd
 
 import "time"
 
+// bufc implements a circular buffer.
 type bufc struct {
 	xs   []float64
 	r, w int
@@ -43,7 +44,10 @@ func NewDelay(dur time.Duration, in Sound) *Delay {
 	return &Delay{newmono(in), newbufc(n)}
 }
 
-func (d *Delay) Prepare(tc uint64) {
+func (d *Delay) Prepare(tc uint64) (ok bool) {
+	if ok = d.mono.Prepare(tc); !ok {
+		return
+	}
 	for i := range d.out {
 		if d.off {
 			d.out[i] = 0
@@ -55,6 +59,7 @@ func (d *Delay) Prepare(tc uint64) {
 			d.line.write(d.in.Sample(i))
 		}
 	}
+	return
 }
 
 type Comb struct {
@@ -68,11 +73,14 @@ func NewComb(gain float64, dur time.Duration, in Sound) *Comb {
 	return &Comb{newmono(in), gain, newbufc(n)}
 }
 
-func (cmb *Comb) Prepare(tc uint64) {
-	if cmb.tc == tc {
+func (cmb *Comb) Prepare(tc uint64) (ok bool) {
+	if ok = cmb.mono.Prepare(tc); !ok {
 		return
 	}
-	cmb.tc = tc
+	// if cmb.tc == tc {
+	// return
+	// }
+	// cmb.tc = tc
 
 	for i := range cmb.out {
 		if cmb.off {
@@ -85,6 +93,7 @@ func (cmb *Comb) Prepare(tc uint64) {
 			cmb.line.write(cmb.in.Sample(i) + cmb.out[i]*cmb.gain)
 		}
 	}
+	return
 }
 
 // type Tap struct {
@@ -145,7 +154,15 @@ func (lp *loop) Record() {
 	lp.rec = true
 }
 
-func (lp *loop) Prepare(tc uint64) {
+func (lp *loop) Prepare(tc uint64) (ok bool) {
+	if ok = lp.mono.Prepare(tc); !ok {
+		return
+	}
+
+	if lp.in != nil {
+		lp.in.Prepare(tc)
+	}
+
 	for i := range lp.out {
 		if lp.rec {
 			if lp.count < len(lp.dout) {
@@ -163,4 +180,5 @@ func (lp *loop) Prepare(tc uint64) {
 			lp.rpos = (lp.rpos + 1) % len(lp.dout)
 		}
 	}
+	return ok
 }

@@ -19,11 +19,13 @@ func (m *Mixer) Append(s Sound) {
 	m.ins = append(m.ins, s)
 }
 
-func (m *Mixer) Prepare(tc uint64) {
+func (m *Mixer) Prepare(tc uint64) (ok bool) {
+	if ok = m.mono.Prepare(tc); !ok {
+		return
+	}
 	for _, in := range m.ins {
 		in.Prepare(tc)
 	}
-
 	for i := range m.out {
 		m.out[i] = 0
 		if !m.off {
@@ -32,4 +34,5 @@ func (m *Mixer) Prepare(tc uint64) {
 			}
 		}
 	}
+	return
 }

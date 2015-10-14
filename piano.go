@@ -100,11 +100,14 @@ func (wf *Piano) KeyAt(ev touch.Event, sz size.Event) int {
 	}
 }
 
-func (wf *Piano) Prepare(tc uint64) {
-	wf.Sound.Prepare(tc)
+func (wf *Piano) Prepare(tc uint64) (ok bool) {
+	if ok = wf.Sound.Prepare(tc); !ok {
+		return
+	}
 	out := wf.Sound.Samples()
 	for i := range out {
 		out[i] = wf.keys[wf.idx] // wf.Sound.Amp(i) * wf.keys[wf.idx]
 		wf.idx = (wf.idx + 1) % len(wf.keys)
 	}
+	return
 }

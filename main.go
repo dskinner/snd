@@ -79,7 +79,7 @@ func NewKey(freq float64) *Key {
 	// TODO http://www.soundonsound.com/sos/nov02/articles/synthsecrets1102.asp
 	osc0 := snd.Osc(sawtooth, freq, snd.Osc(sine, 2, nil))
 	osc0.SetPhase(1, snd.Osc(square, freq*0.4, nil))
-	comb := snd.NewComb(10*ms, 0.8, osc0)
+	comb := snd.NewComb(0.8, 10*ms, osc0)
 	adsr := snd.NewADSR(50*ms, 500*ms, 100*ms, release, 0.4, 1, comb)
 
 	instr := snd.NewInstrument(adsr)
@@ -126,7 +126,7 @@ func onStart(ctx gl.Context) {
 
 	mix = snd.NewMixer()
 	for i := range keys {
-		keys[i] = NewKeyOsc(notes[51+i]) // notes[51] is Major C
+		keys[i] = NewKey(notes[51+i]) // notes[51] is Major C
 		mix.Append(keys[i])
 	}
 
@@ -176,7 +176,7 @@ func onStart(ctx gl.Context) {
 	somemod = snd.Osc(harm, 2, nil)
 	// interesting frequencies with first key
 	// 520, 695
-	someosc = snd.Osc(harm, 440, nil)
+	someosc = snd.Osc(harm, 695, nil)
 	// mix.Append(someosc)
 
 	// somedelay := snd.NewDelay(time.Second, someosc)
@@ -196,7 +196,7 @@ func onPaint(ctx gl.Context) {
 	ctx.ClearColor(0, 0, 0, 1)
 	ctx.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 
-	pianowf.Prepare(0)
+	pianowf.Prepare(1)
 	switch sz.Orientation {
 	case size.OrientationPortrait:
 		pianowf.Paint(ctx, -1, -1, 2, 0.5)

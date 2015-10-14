@@ -135,7 +135,10 @@ func NewLowPass(freq float64, in Sound) *LowPass {
 	return &LowPass{mono: newmono(in), b: b, b0: b0, b1: b1, b2: b2, b3: b3}
 }
 
-func (lp *LowPass) Prepare(tc uint64) {
+func (lp *LowPass) Prepare(tc uint64) (ok bool) {
+	if ok = lp.mono.Prepare(tc); !ok {
+		return
+	}
 	if lp.in != nil {
 		lp.in.Prepare(tc)
 	}
@@ -143,4 +146,5 @@ func (lp *LowPass) Prepare(tc uint64) {
 		lp.out[i] = lp.b*x + lp.b1*lp.d1 + lp.b2*lp.d2 + lp.b3*lp.d3
 		lp.d3, lp.d2, lp.d1 = lp.d2, lp.d1, lp.out[i]
 	}
+	return
 }
