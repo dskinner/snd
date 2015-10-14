@@ -1,8 +1,6 @@
 package snd
 
 import (
-	"sort"
-	"sync"
 	"testing"
 	"time"
 )
@@ -18,6 +16,93 @@ func newunit() *unit {
 }
 
 func (u *unit) Prepare(uint64) {}
+
+// mksound returns a 12-key piano synth as might be found in an app.
+func mksound() Sound {
+	mix := NewMixer()
+	for i := 0; i < 12; i++ {
+		oscil := Osc(Sawtooth(4), 440, Osc(Sine(), 2, nil))
+		oscil.SetPhase(1, Osc(Square(4), 200, nil))
+
+		comb := NewComb(0.8, 10*time.Millisecond, oscil)
+		adsr := NewADSR(50*time.Millisecond, 500*time.Millisecond, 100*time.Millisecond, 350*time.Millisecond, 0.4, 1, comb)
+		instr := NewInstrument(adsr)
+		mix.Append(instr)
+	}
+	loop := Loop(5*time.Second, mix)
+	mixloop := NewMixer(mix, loop)
+	lp := NewLowPass(1500, mixloop)
+	mixwf, err := NewWaveform(nil, 4, lp)
+	if err != nil {
+		panic(err)
+	}
+	return NewPan(0, mixwf)
+}
+
+// func mkthoughtsaboutcreatingstuff() Sound {
+// What if these were Options passed in ?
+// How many things actually have options?
+
+// Would need a way that an "option" and an "instance" could
+// interchangably be used here, such as implementing the same interface?
+// or having some type of lazy initialization that would allow easy access
+// to the instance pointers.
+
+// sine := Sine()
+// sawtooth := Sawtooth(4)
+// square := Square(4)
+
+// phaser := snd.Oscil{
+// Harm: square,
+// Freq: 200,
+// }.New()
+
+// osc := snd.Oscil{
+// Harm:  sawtooth,
+// Freq:  440,
+// Mod:   snd.Oscil{Harm: sine, Freq: 2}, // every new osc has independent mod
+// Phase: phaser,                         // every new osc reuses same phaser
+// }.New()
+
+// cmb := snd.Comb{
+// Gain: 0.8,
+// Dur:  10 * time.Millisecond,
+// }.New()
+
+// env := snd.ADSR{
+// Attack:  50 * time.Millisecond,
+// Decay:   500 * time.Millisecond,
+// Sustain: 100 * time.Millisecond,
+// Release: 350 * time.Millisecond,
+// SusAmp:  0.4,
+// MaxAmp:  1,
+// }.New()
+
+// cmb.SetInput(osc)
+// env.SetInput(cmb)
+
+// this is just bad for so many reasons.
+// &Pan{
+// Left:  1,
+// Right: 1,
+// In: &Waveform{
+// Buf: 4,
+// In: &LowPass{
+// Cutoff: 1500,
+// In: &Mixer{
+// Ins: []Sound{
+// &Loop{
+// Duration: 5,
+// },
+// &Mixer{
+// Ins: []Sound{}
+// },
+// },
+// },
+// },
+// },
+// }
+// }
 
 func TestDecibel(t *testing.T) {
 	tests := []struct {
@@ -35,143 +120,5 @@ func TestDecibel(t *testing.T) {
 		if !equals(test.db.Amp(), test.amp) {
 			t.Errorf("%s have %v, want %v", test.db, test.db.Amp(), test.amp)
 		}
-	}
-}
-
-func BenchmarkPiano(b *testing.B) {
-	mix := NewMixer()
-	for i := 0; i < 12; i++ {
-		oscil := Osc(Sawtooth(4), 440, Osc(Sine(), 2, nil))
-		oscil.SetPhase(1, Osc(Square(4), 200, nil))
-		comb := NewComb(0.8, 10*time.Millisecond, oscil)
-		adsr := NewADSR(50*time.Millisecond, 500*time.Millisecond, 100*time.Millisecond, 350*time.Millisecond, 0.4, 1, comb)
-		instr := NewInstrument(adsr)
-		mix.Append(instr)
-	}
-	loop := Loop(5*time.Second, mix)
-	mixloop := NewMixer(mix, loop)
-	lp := NewLowPass(1500, mixloop)
-	mixwf, err := NewWaveform(nil, 4, lp)
-	if err != nil {
-		b.Fatal(err)
-	}
-	pan := NewPan(0, mixwf)
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		pan.Prepare(uint64(n + 1))
-	}
-}
-
-func TestWalk(t *testing.T) {
-	mix := NewMixer()
-	for i := 0; i < 12; i++ {
-		oscil := Osc(Sawtooth(4), 440, Osc(Sine(), 2, nil))
-		oscil.SetPhase(1, Osc(Square(4), 200, nil))
-		comb := NewComb(0.8, 10*time.Millisecond, oscil)
-		adsr := NewADSR(50*time.Millisecond, 500*time.Millisecond, 100*time.Millisecond, 350*time.Millisecond, 0.4, 1, comb)
-		instr := NewInstrument(adsr)
-		mix.Append(instr)
-	}
-	loop := Loop(5*time.Second, mix)
-	mixloop := NewMixer(mix, loop)
-	lp := NewLowPass(1500, mixloop)
-	mixwf, err := NewWaveform(nil, 4, lp)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pan := NewPan(0, mixwf)
-
-	//
-	var ins []*inp
-	getins(pan, 0, &ins)
-	t.Log("inputs length", len(ins))
-	sort.Sort(bywt(ins))
-	for i, v := range ins {
-		t.Log(i, v)
-	}
-
-	var wg sync.WaitGroup
-	wt := ins[0].wt
-	for _, inp := range ins {
-		if inp.wt != wt {
-			wg.Wait()
-			wt = inp.wt
-		}
-		wg.Add(1)
-		go func(sd Sound, tc uint64) {
-			sd.Prepare(tc)
-			wg.Done()
-		}(inp.sd, 1)
-	}
-	wg.Wait()
-}
-
-func BenchmarkWalk(b *testing.B) {
-	mix := NewMixer()
-	for i := 0; i < 12; i++ {
-		oscil := Osc(Sawtooth(4), 440, Osc(Sine(), 2, nil))
-		oscil.SetPhase(1, Osc(Square(4), 200, nil))
-		comb := NewComb(0.8, 10*time.Millisecond, oscil)
-		adsr := NewADSR(50*time.Millisecond, 500*time.Millisecond, 100*time.Millisecond, 350*time.Millisecond, 0.4, 1, comb)
-		instr := NewInstrument(adsr)
-		mix.Append(instr)
-	}
-	loop := Loop(5*time.Second, mix)
-	mixloop := NewMixer(mix, loop)
-	lp := NewLowPass(1500, mixloop)
-	mixwf, err := NewWaveform(nil, 4, lp)
-	if err != nil {
-		b.Fatal(err)
-	}
-	pan := NewPan(0, mixwf)
-
-	//
-	b.ReportAllocs()
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		var ins []*inp
-		ins = append(ins, &inp{pan, 0})
-		getins(pan, 1, &ins)
-		sort.Sort(bywt(ins))
-	}
-}
-
-type inp struct {
-	sd Sound
-	wt int
-}
-
-// TODO janky methods
-type bywt []*inp
-
-func (a bywt) Len() int           { return len(a) }
-func (a bywt) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a bywt) Less(i, j int) bool { return a[i].wt > a[j].wt }
-
-func getins(sd Sound, wt int, out *[]*inp) {
-	for _, in := range sd.Inputs() {
-		if in == nil {
-			continue
-		}
-
-		at := -1
-		for i, p := range *out {
-			if p.sd == in {
-				if p.wt >= wt {
-					return // object has or will be traversed on different branch
-				}
-				at = i
-				break
-			}
-		}
-		if at != -1 {
-			(*out)[at].sd = in
-			(*out)[at].wt = wt
-		} else {
-			*out = append(*out, &inp{in, wt})
-		}
-		getins(in, wt+1, out)
 	}
 }

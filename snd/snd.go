@@ -198,5 +198,4 @@ func (s *stereo) On()         { s.l.off, s.r.off = true, true }
 
 func (s *stereo) Inputs() []Sound { return []Sound{s.in} }
 
-func (s *stereo) Prepare(tc uint64) {
-}
+func (s *stereo) Prepare(tc uint64) {}

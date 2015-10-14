@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"sort"
-	"sync"
 	"time"
 
 	"dasa.cc/piano/snd"
@@ -57,44 +55,6 @@ func (b *Buffer) Get() (bufs []al.Buffer) {
 	return bufs
 }
 
-type inp struct {
-	sd snd.Sound
-	wt int
-}
-
-// TODO janky methods
-type bywt []*inp
-
-func (a bywt) Len() int           { return len(a) }
-func (a bywt) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a bywt) Less(i, j int) bool { return a[i].wt > a[j].wt }
-
-func getins(sd snd.Sound, wt int, out *[]*inp) {
-	for _, in := range sd.Inputs() {
-		if in == nil {
-			continue
-		}
-
-		at := -1
-		for i, p := range *out {
-			if p.sd == in {
-				if p.wt >= wt {
-					return // object has or will be traversed on different path
-				}
-				at = i
-				break
-			}
-		}
-		if at != -1 {
-			(*out)[at].sd = in
-			(*out)[at].wt = wt
-		} else {
-			*out = append(*out, &inp{in, wt})
-		}
-		getins(in, wt+1, out)
-	}
-}
-
 type openal struct {
 	source al.Source
 	buf    *Buffer
@@ -112,7 +72,7 @@ type openal struct {
 
 	start time.Time
 
-	inputs []*inp
+	inputs []*snd.Input
 }
 
 func OpenDevice(buflen int) error {
@@ -155,9 +115,7 @@ func AddSource(in snd.Sound) error {
 
 	log.Println("snd/al: software latency", SoftLatency())
 
-	hwa.inputs = append(hwa.inputs, &inp{in, 0})
-	getins(in, 1, &hwa.inputs)
-	sort.Sort(bywt(hwa.inputs))
+	hwa.inputs = snd.GetInputs(in)
 
 	return nil
 }
@@ -189,6 +147,8 @@ func Start() {
 
 func Stop() { close(hwa.quit) }
 
+var dp = new(snd.Dispatcher)
+
 func Tick() {
 	start := time.Now()
 
@@ -204,25 +164,7 @@ func Tick() {
 	for _, buf := range bufs {
 		hwa.tc++
 
-		// for _, inp := range hwa.inputs {
-		// inp.sd.Prepare(hwa.tc)
-		// }
-
-		var wg sync.WaitGroup
-		wt := hwa.inputs[0].wt
-		for _, inp := range hwa.inputs {
-			if inp.wt != wt {
-				wg.Wait()
-				wt = inp.wt
-			}
-			wg.Add(1)
-			go func(sd snd.Sound, tc uint64) {
-				sd.Prepare(tc)
-				wg.Done()
-			}(inp.sd, hwa.tc)
-		}
-		wg.Wait()
-
+		dp.Dispatch(hwa.tc, hwa.inputs...)
 		for i, x := range hwa.in.Samples() {
 			// clip
 			if x > 1 {
