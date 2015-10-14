@@ -49,6 +49,10 @@ func NewWaveform(ctx gl.Context, n int, in Sound) (*Waveform, error) {
 	wf.verts = make([]float32, len(wf.aligned)*3)
 	wf.data = make([]byte, len(wf.verts)*4)
 
+	if ctx == nil {
+		return wf, nil
+	}
+
 	var err error
 	wf.program, err = glutil.CreateProgram(ctx, vertexShader, fragmentShader)
 	if err != nil {

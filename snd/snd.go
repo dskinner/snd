@@ -89,9 +89,6 @@ type Sound interface {
 	BufferLen() int
 	SetBufferLen(int)
 
-	// Frames returns BufferLen() / Channels()
-	// Frames() int
-
 	// Prepare is when a sound should prepare sample frames. returns true if ok to continue.
 	// TODO actually probably possible to completely avoid all the ok = ...; !ok by just making
 	// this a different method that no one is overriding ...

@@ -11,12 +11,14 @@ import (
 	"golang.org/x/mobile/exp/audio/al"
 )
 
+const maxbufs = 80 // arbitrary soft limit
+
 var hwa *openal
 
 // Buffer provides adaptive buffering for real-time responses that outpace
 // openal's ability to report a buffer as processed.
 // Constant-time synchronization is left up to the caller.
-// TODO consider naming SourceBuffers and embedding
+// TODO consider naming SourceBuffers and embedding al.Source
 type Buffer struct {
 	src  al.Source
 	bufs []al.Buffer // intrinsic to src
@@ -27,6 +29,8 @@ type Buffer struct {
 // Get returns a slice of buffers of length b.size ready to receive data and be queued.
 // If b.src reports processing at-least as many buffers as b.size, buffers up to b.size
 // will be unqueued for reuse. Otherwise, new buffers will be generated.
+//
+// If the length of b.bufs has grown to be greater than maxbufs, a nil slice is returned.
 func (b *Buffer) Get() (bufs []al.Buffer) {
 	if proc := int(b.src.BuffersProcessed()); proc >= b.size {
 		// advance by size, BuffersProcessed will report that many less next time.
@@ -36,11 +40,15 @@ func (b *Buffer) Get() (bufs []al.Buffer) {
 			log.Printf("snd/al: unqueue buffers failed [err=%v]\n", code)
 		}
 		b.idx = (b.idx + b.size) % len(b.bufs)
+	} else if len(b.bufs) >= maxbufs {
+		// likely programmer error, something has gone horribly wrong.
+		log.Printf("snd/al: get buffers failed, maxbufs reached [len=%v]\n", len(b.bufs))
+		return nil
 	} else {
 		// make more buffers to fill data regardless of what openal says about processed.
 		bufs = al.GenBuffers(b.size)
 		if code := al.Error(); code != 0 {
-			log.Printf("snd/al: generate buffers failed [err=%v]", code)
+			log.Printf("snd/al: generate buffers failed [err=%v]\n", code)
 		}
 		b.bufs = append(b.bufs, bufs...)
 	}
@@ -58,10 +66,11 @@ type openal struct {
 	quit chan struct{}
 
 	underruns uint64
-	ticktime  time.Duration
-	tickcount uint64
 
-	tc uint64
+	tdur time.Duration
+	tc   uint64
+
+	start time.Time
 }
 
 func OpenDevice(buflen int) error {
@@ -102,13 +111,14 @@ func AddSource(in snd.Sound) error {
 	hwa.source = s[0]
 	hwa.buf.src = s[0]
 
-	log.Println("snd/al: latency", Latency())
+	log.Println("snd/al: software latency", SoftLatency())
 
 	return nil
 }
 
-func Latency() time.Duration {
-	return time.Duration(float64(hwa.in.BufferLen()) / hwa.in.SampleRate() * float64(time.Second) * float64(hwa.buf.size))
+func SoftLatency() time.Duration {
+	nframes := float64(hwa.in.BufferLen() / hwa.in.Channels())
+	return time.Duration(nframes * float64(hwa.buf.size) / hwa.in.SampleRate() * float64(time.Second))
 }
 
 func Start() {
@@ -117,21 +127,21 @@ func Start() {
 	}
 	hwa.quit = make(chan struct{})
 	go func() {
-		tick := time.Tick(Latency() / 2)
+		hwa.start = time.Now()
+		Tick()
+		refill := time.Tick(SoftLatency())
 		for {
 			select {
 			case <-hwa.quit:
 				return
-			case <-tick:
+			case <-refill:
 				Tick()
 			}
 		}
 	}()
 }
 
-func Stop() {
-	close(hwa.quit)
-}
+func Stop() { close(hwa.quit) }
 
 func Tick() {
 	start := time.Now()
@@ -181,8 +191,7 @@ func Tick() {
 		al.PlaySources(hwa.source)
 	}
 
-	hwa.ticktime += time.Now().Sub(start)
-	hwa.tickcount++
+	hwa.tdur += time.Now().Sub(start)
 }
 
 func BufLen() int {
@@ -194,8 +203,17 @@ func Underruns() uint64 {
 }
 
 func TickAverge() time.Duration {
-	if hwa.tickcount == 0 {
+	if hwa.tc == 0 || hwa.buf.size == 0 {
 		return 0
 	}
-	return hwa.ticktime / time.Duration(hwa.tickcount)
+	return hwa.tdur / time.Duration(int(hwa.tc)/hwa.buf.size)
+}
+
+func DriftApprox() time.Duration {
+	if hwa.tc == 0 || hwa.buf.size == 0 {
+		return 0
+	}
+	dt := int64(time.Now().Sub(hwa.start) / time.Duration(int(hwa.tc)/hwa.buf.size))
+	lt := int64(SoftLatency())
+	return time.Duration(lt - dt)
 }

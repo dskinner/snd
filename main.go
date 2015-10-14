@@ -293,7 +293,8 @@ func main() {
 		logdbg := time.NewTicker(time.Second)
 		go func() {
 			for range logdbg.C {
-				log.Printf("fps=%-5v underruns=%-6v tickavg=%-15s buflen=%v\n", fps, al.Underruns(), al.TickAverge(), al.BufLen())
+				log.Printf("fps=%-4v underruns=%-4v buflen=%-4v tickavg=%-12s drift=%s\n",
+					fps, al.Underruns(), al.BufLen(), al.TickAverge(), al.DriftApprox())
 			}
 		}()
 

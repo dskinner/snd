@@ -5,9 +5,12 @@
 	android:versionCode="1"
 	android:versionName="1.0">
 
-	<uses-sdk android:minSdkVersion="9" />
+	<uses-sdk android:minSdkVersion="16" />
 
-	<application android:label="Piano" android:debuggable="true">
+	<application
+			android:theme="@android:style/Theme.NoTitleBar"
+			android:label="Piano"
+			android:debuggable="true">
 
 		<activity
 				android:name="org.golang.app.GoNativeActivity"
