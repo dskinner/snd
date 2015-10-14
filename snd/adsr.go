@@ -71,18 +71,14 @@ func (env *ADSR) Restart() {
 // printEnd   sync.Once
 // )
 
-func (env *ADSR) Prepare(tc uint64) (ok bool) {
-	if ok = env.mono.Prepare(tc); !ok {
-		return
-	}
-
+func (env *ADSR) Prepare(uint64) {
 	for i := range env.out {
 		if env.off {
 			env.out[i] = 0
 		} else {
-			if env.in != nil {
-				env.in.Prepare(tc)
-			}
+			// if env.in != nil {
+			// env.in.Prepare(tc)
+			// }
 
 			amp := 1.0
 			if env.count == env.duration {
@@ -120,5 +116,4 @@ func (env *ADSR) Prepare(tc uint64) (ok bool) {
 			}
 		}
 	}
-	return ok
 }

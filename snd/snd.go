@@ -97,7 +97,7 @@ type Sound interface {
 	// to method Do(uint64) and have Prepare be proxy.
 	// would be nice to have that be where dependent prepares are called, like Osc has so many
 	// after prepares are done, i suppose all output is actually parallelizable at that point ... hmmm, is it?
-	Prepare(uint64) (ok bool)
+	Prepare(uint64)
 
 	// TODO maybe ditch this, point of architecture is you can't mess
 	// with an input's output but a slice exposes that. Or, discourage
@@ -108,13 +108,11 @@ type Sound interface {
 	// Sample returns the sample at pos mod BufferLen().
 	Sample(pos int) float64
 
-	IsOff() bool
 	Off()
 	On()
 
-	// TODO maybe i want this, maybe I dont
-	// Input() Sound
-	// SetInput(Sound)
+	// Inputs should return all inputs a Sound wants discoverable (for auto-prepare).
+	Inputs() []Sound
 }
 
 func Mono(in Sound) Sound { return newmono(in) }
@@ -162,13 +160,10 @@ func (s *mono) IsOff() bool { return s.off }
 func (s *mono) Off()        { s.off = true }
 func (s *mono) On()         { s.off = false }
 
-//
-func (s *mono) SetInput(in Sound) { s.in = in }
+func (s *mono) Inputs() []Sound { return []Sound{s.in} }
 
-func (s *mono) Prepare(tc uint64) (ok bool) {
-	ok, s.tc = s.tc != tc, tc
-	return
-}
+// TODO consider not having mono or stereo actually implement sound by remove this
+func (s *mono) Prepare(uint64) {}
 
 type stereo struct {
 	l, r *mono
@@ -201,7 +196,7 @@ func (s *stereo) IsOff() bool { return s.l.off || s.r.off }
 func (s *stereo) Off()        { s.l.off, s.r.off = false, false }
 func (s *stereo) On()         { s.l.off, s.r.off = true, true }
 
-func (s *stereo) Prepare(tc uint64) (ok bool) {
-	ok, s.tc = s.tc != tc, tc
-	return
+func (s *stereo) Inputs() []Sound { return []Sound{s.in} }
+
+func (s *stereo) Prepare(tc uint64) {
 }

@@ -50,18 +50,11 @@ func NewPan(amt float64, in Sound) *Pan {
 func (p *Pan) SetAmount(amt float64) { p.amt = amt }
 
 // Prepare interleaves the left and right channels.
-func (p *Pan) Prepare(tc uint64) (ok bool) {
-	if ok = p.stereo.Prepare(tc); !ok {
-		return
-	}
-	if p.in != nil {
-		p.in.Prepare(tc)
-	}
+func (p *Pan) Prepare(uint64) {
 	for i, x := range p.in.Samples() {
 		p.l.out[i] = x * getpanpos(p.amt, 0)
 		p.r.out[i] = x * getpanpos(p.amt, 1)
 		p.out[i*2] = p.l.out[i]
 		p.out[i*2+1] = p.r.out[i]
 	}
-	return
 }

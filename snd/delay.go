@@ -44,22 +44,18 @@ func NewDelay(dur time.Duration, in Sound) *Delay {
 	return &Delay{newmono(in), newbufc(n)}
 }
 
-func (d *Delay) Prepare(tc uint64) (ok bool) {
-	if ok = d.mono.Prepare(tc); !ok {
-		return
-	}
-	for i := range d.out {
-		if d.off {
-			d.out[i] = 0
+func (dly *Delay) Prepare(uint64) {
+	for i := range dly.out {
+		if dly.off {
+			dly.out[i] = 0
 		} else {
-			if d.in != nil {
-				d.in.Prepare(tc)
-			}
-			d.out[i] = d.line.read()
-			d.line.write(d.in.Sample(i))
+			// if d.in != nil {
+			// d.in.Prepare(tc)
+			// }
+			dly.out[i] = dly.line.read()
+			dly.line.write(dly.in.Sample(i))
 		}
 	}
-	return
 }
 
 type Comb struct {
@@ -73,27 +69,18 @@ func NewComb(gain float64, dur time.Duration, in Sound) *Comb {
 	return &Comb{newmono(in), gain, newbufc(n)}
 }
 
-func (cmb *Comb) Prepare(tc uint64) (ok bool) {
-	if ok = cmb.mono.Prepare(tc); !ok {
-		return
-	}
-	// if cmb.tc == tc {
-	// return
-	// }
-	// cmb.tc = tc
-
+func (cmb *Comb) Prepare(uint64) {
 	for i := range cmb.out {
 		if cmb.off {
 			cmb.out[i] = 0
 		} else {
-			if cmb.in != nil {
-				cmb.in.Prepare(tc)
-			}
+			// if cmb.in != nil {
+			// cmb.in.Prepare(tc)
+			// }
 			cmb.out[i] = cmb.line.read()
 			cmb.line.write(cmb.in.Sample(i) + cmb.out[i]*cmb.gain)
 		}
 	}
-	return
 }
 
 // type Tap struct {
@@ -154,14 +141,7 @@ func (lp *loop) Record() {
 	lp.rec = true
 }
 
-func (lp *loop) Prepare(tc uint64) (ok bool) {
-	if ok = lp.mono.Prepare(tc); !ok {
-		return
-	}
-
-	if lp.in != nil {
-		lp.in.Prepare(tc)
-	}
+func (lp *loop) Prepare(uint64) {
 
 	for i := range lp.out {
 		if lp.rec {
@@ -180,5 +160,4 @@ func (lp *loop) Prepare(tc uint64) (ok bool) {
 			lp.rpos = (lp.rpos + 1) % len(lp.dout)
 		}
 	}
-	return ok
 }

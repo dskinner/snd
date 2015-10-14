@@ -14,12 +14,11 @@ func Ring(in0, in1 Sound) Sound {
 	}
 }
 
-func (ring *ring) Prepare(tc uint64) (ok bool) {
-	if ok = ring.mono.Prepare(tc); !ok {
-		return
-	}
-	ring.in0.Prepare(tc)
-	ring.in1.Prepare(tc)
+func (ring *ring) Inputs() []Sound {
+	return []Sound{ring.in0, ring.in1}
+}
+
+func (ring *ring) Prepare(uint64) {
 	for i := range ring.out {
 		if ring.off {
 			ring.out[i] = 0
@@ -27,5 +26,4 @@ func (ring *ring) Prepare(tc uint64) (ok bool) {
 			ring.out[i] = ring.in0.Samples()[i] * ring.in1.Samples()[i]
 		}
 	}
-	return
 }
