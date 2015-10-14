@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"sort"
+	"sync"
 	"time"
 
 	"dasa.cc/piano/snd"
@@ -202,10 +203,26 @@ func Tick() {
 
 	for _, buf := range bufs {
 		hwa.tc++
-		// hwa.in.Prepare(hwa.tc)
+
+		// for _, inp := range hwa.inputs {
+		// inp.sd.Prepare(hwa.tc)
+		// }
+
+		var wg sync.WaitGroup
+		wt := hwa.inputs[0].wt
 		for _, inp := range hwa.inputs {
-			inp.sd.Prepare(hwa.tc)
+			if inp.wt != wt {
+				wg.Wait()
+				wt = inp.wt
+			}
+			wg.Add(1)
+			go func(sd snd.Sound, tc uint64) {
+				sd.Prepare(tc)
+				wg.Done()
+			}(inp.sd, hwa.tc)
 		}
+		wg.Wait()
+
 		for i, x := range hwa.in.Samples() {
 			// clip
 			if x > 1 {

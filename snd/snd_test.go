@@ -2,6 +2,7 @@ package snd
 
 import (
 	"sort"
+	"sync"
 	"testing"
 	"time"
 )
@@ -16,7 +17,7 @@ func newunit() *unit {
 	return u
 }
 
-func (u *unit) Prepare(tc uint64) bool { return true }
+func (u *unit) Prepare(uint64) {}
 
 func TestDecibel(t *testing.T) {
 	tests := []struct {
@@ -90,6 +91,21 @@ func TestWalk(t *testing.T) {
 	for i, v := range ins {
 		t.Log(i, v)
 	}
+
+	var wg sync.WaitGroup
+	wt := ins[0].wt
+	for _, inp := range ins {
+		if inp.wt != wt {
+			wg.Wait()
+			wt = inp.wt
+		}
+		wg.Add(1)
+		go func(sd Sound, tc uint64) {
+			sd.Prepare(tc)
+			wg.Done()
+		}(inp.sd, 1)
+	}
+	wg.Wait()
 }
 
 func BenchmarkWalk(b *testing.B) {
@@ -116,7 +132,8 @@ func BenchmarkWalk(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		var ins []*inp
-		getins(pan, 0, &ins)
+		ins = append(ins, &inp{pan, 0})
+		getins(pan, 1, &ins)
 		sort.Sort(bywt(ins))
 	}
 }
@@ -132,18 +149,6 @@ type bywt []*inp
 func (a bywt) Len() int           { return len(a) }
 func (a bywt) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a bywt) Less(i, j int) bool { return a[i].wt > a[j].wt }
-
-// func (a bywt) multi() [][]Sound {
-// if len(a) == 0 {
-// return nil
-// }
-
-// n := a[0].wt
-// out := make([][]Sound, n)
-// for i, p := range a {
-
-// }
-// }
 
 func getins(sd Sound, wt int, out *[]*inp) {
 	for _, in := range sd.Inputs() {
