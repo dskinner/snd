@@ -2,11 +2,11 @@ package snd
 
 import "testing"
 
-func BenchmarkLowPass(b *testing.B) {
-	lp := NewLowPass(500, newunit())
+func BenchmarkPan(b *testing.B) {
+	pan := NewPan(0, newunit())
 	b.ReportAllocs()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		lp.Prepare(uint64(n))
+		pan.Prepare(uint64(n))
 	}
 }

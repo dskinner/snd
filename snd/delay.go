@@ -8,13 +8,25 @@ type bufc struct {
 	r, w int
 }
 
-func newbufc(n int) *bufc { return &bufc{make([]float64, n), 1, 0} }
+// newbufc returns buffer of length n with read offset r.
+func newbufc(n int, r int) *bufc { return &bufc{make([]float64, n), r, 0} }
 
 func (b *bufc) read() (x float64) {
 	x = b.xs[b.r]
 	b.r++
 	if b.r == len(b.xs) {
 		b.r = 0
+	}
+	return
+}
+
+// readat returns x at r and next read position.
+func (b *bufc) readat(r int) (x float64, n int) {
+	n = r
+	x = b.xs[n]
+	n++
+	if n == len(b.xs) {
+		n = 0
 	}
 	return
 }
@@ -29,19 +41,24 @@ func (b *bufc) write(x float64) (end bool) {
 	return
 }
 
+// dtof converts time duration to approximate number of representative frames.
+func dtof(d time.Duration, sr float64) (f int) {
+	return int(float64(d) / float64(time.Second) * sr)
+}
+
+// ftod converts f, number of frames, to approximate time duration.
+func ftod(f int, sr float64) (d time.Duration) {
+	return time.Duration(float64(f) / sr * float64(time.Second))
+}
+
 type Delay struct {
 	*mono
 	line *bufc
 }
 
-func NewDelay(dur time.Duration, in Sound) *Delay {
-	// TODO treat as time.Millisecond and then number of samples needed would be
-	// 1/(dur/time.Millisecond)
-	// probably throw away duration after that can be worked out as
-	// len(dout) / in.Channels() / in.SampleRate()
-	// ... maybe time to add dat Frames method!
-	n := int(in.SampleRate() * float64(dur) / float64(time.Second))
-	return &Delay{newmono(in), newbufc(n)}
+// NewDelay returns Delay with sample buffer of a length approximated by d.
+func NewDelay(d time.Duration, in Sound) *Delay {
+	return &Delay{newmono(in), newbufc(dtof(d, in.SampleRate()), 1)}
 }
 
 func (dly *Delay) Prepare(uint64) {
@@ -49,24 +66,58 @@ func (dly *Delay) Prepare(uint64) {
 		if dly.off {
 			dly.out[i] = 0
 		} else {
-			// if d.in != nil {
-			// d.in.Prepare(tc)
-			// }
 			dly.out[i] = dly.line.read()
 			dly.line.write(dly.in.Sample(i))
 		}
 	}
 }
 
-type Comb struct {
+// Tap is a tapped delay line, essentially a shorter delay within a larger one.
+// TODO consider some type of method on Delay instead of a separate type.
+// For example, Tap intentionally does not expose dly via Inputs() so why is it
+// its own type? Conversely, that'd make Delay a mixer of sorts.
+type Tap struct {
 	*mono
-	gain float64
-	line *bufc
+	dly *Delay
+	r   int
 }
 
-func NewComb(gain float64, dur time.Duration, in Sound) *Comb {
-	n := int(in.SampleRate() * float64(dur) / float64(time.Second))
-	return &Comb{newmono(in), gain, newbufc(n)}
+func NewTap(d time.Duration, in *Delay) *Tap {
+	f := dtof(d, in.SampleRate())
+	n := len(in.line.xs)
+	if f >= n {
+		f = n - 1
+	}
+	// TODO this would fall out of sync if toggled off
+	// separate from Delay suggesting a more intrinsic design
+	// is required here.
+	//
+	// get ahead of the delay's write position
+	r := in.line.w + (n - f)
+	if r >= n {
+		r -= n
+	}
+	return &Tap{newmono(nil), in, r}
+}
+
+func (tap *Tap) Prepare(uint64) {
+	for i := range tap.out {
+		if tap.off {
+			tap.out[i] = 0
+		} else {
+			tap.out[i], tap.r = tap.dly.line.readat(tap.r)
+		}
+	}
+}
+
+type Comb struct {
+	*mono
+	line *bufc
+	gain float64
+}
+
+func NewComb(gain float64, d time.Duration, in Sound) *Comb {
+	return &Comb{newmono(in), newbufc(dtof(d, in.SampleRate()), 1), gain}
 }
 
 func (cmb *Comb) Prepare(uint64) {
@@ -74,90 +125,39 @@ func (cmb *Comb) Prepare(uint64) {
 		if cmb.off {
 			cmb.out[i] = 0
 		} else {
-			// if cmb.in != nil {
-			// cmb.in.Prepare(tc)
-			// }
 			cmb.out[i] = cmb.line.read()
 			cmb.line.write(cmb.in.Sample(i) + cmb.out[i]*cmb.gain)
 		}
 	}
 }
 
-// type Tap struct {
-// *mono
-// delay *Delay
-// dur   float64
-// rpos  int
-// }
-
-// func NewTap(dur time.Duration, delay *Delay) *Tap {
-// d := float64(dur) / float64(time.Second)
-// if d > delay.dur {
-// d = delay.dur
-// }
-// return &Tap{
-// mono:  newmono(delay),
-// dur:   d,
-// delay: delay,
-// rpos:  delay.rpos + int(float64(len(delay.dout))-(d*delay.SampleRate())),
-// }
-// }
-
-// func (tap *Tap) Prepare(tc uint64) {
-// if tap.in != nil {
-// tap.in.Prepare(tc)
-// }
-// for i := range tap.out {
-// read
-// tap.out[i] = tap.delay.dout[tap.rpos]
-// tap.rpos = (tap.rpos + 1) % len(tap.delay.dout)
-// }
-// }
-
-type Looper interface {
-	Sound
-	Record()
-}
-
-func Loop(dur time.Duration, in Sound) Looper {
-	lp := &loop{mono: newmono(in)}
-	lp.dur = float64(dur) / float64(time.Second)
-	lp.dout = make([]float64, int(in.SampleRate()*lp.dur))
-	return lp
-}
-
-type loop struct {
+type Loop struct {
 	*mono
-	dur        float64
-	dout       []float64
-	wpos, rpos int
-
-	count int
-	rec   bool
+	line *bufc
+	rec  bool
 }
 
-func (lp *loop) Record() {
-	lp.wpos = 0
+func NewLoop(d time.Duration, in Sound) *Loop {
+	return &Loop{newmono(in), newbufc(dtof(d, in.SampleRate()), 0), false}
+}
+
+func (lp *Loop) Record() {
+	// TODO may want to replace lp.line with new instance instead?
+	// otherwise there will be left over data in buffer
+	// if adding Stop() method, unless that's desireable?
+	lp.line.w = 0
 	lp.rec = true
 }
 
-func (lp *loop) Prepare(uint64) {
-
+func (lp *Loop) Prepare(uint64) {
 	for i := range lp.out {
-		if lp.rec {
-			if lp.count < len(lp.dout) {
-				// write
-				lp.dout[lp.wpos] = lp.in.Samples()[i]
-				lp.wpos = (lp.wpos + 1) % len(lp.dout)
-				lp.count++
-			} else {
-				lp.rpos = 0
-				lp.rec = false
-			}
+		if lp.off {
+			lp.out[i] = 0
+		} else if lp.rec && lp.line.write(lp.in.Sample(i)) {
+			lp.rec = false
+			lp.line.r = 0
 		} else {
-			// read
-			lp.out[i] = lp.dout[lp.rpos]
-			lp.rpos = (lp.rpos + 1) % len(lp.dout)
+			lp.out[i] = lp.line.read()
 		}
 	}
 }

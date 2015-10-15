@@ -4,38 +4,35 @@ import "time"
 
 type Instrument struct {
 	*mono
-	// time in samples
-	count float64
-	offat float64
+	tm int
 }
 
 func NewInstrument(in Sound) *Instrument {
-	return &Instrument{mono: newmono(in)}
+	return &Instrument{newmono(in), 0}
 }
 
-func (inst *Instrument) OffIn(d time.Duration) {
-	inst.offat = inst.count + (inst.SampleRate() * float64(d) / float64(time.Second))
+func (nst *Instrument) OffIn(d time.Duration) {
+	nst.tm = dtof(d, nst.SampleRate())
 }
 
-func (inst *Instrument) On() {
-	inst.offat = -1 // cancels any previous offat if not reached
-	inst.mono.On()
+func (nst *Instrument) On() {
+	nst.tm = 0 // cancels any previous OffIn if not reached
+	nst.mono.On()
 }
 
-func (inst *Instrument) Prepare(uint64) {
-	for i := range inst.out {
-		if inst.off {
-			inst.out[i] = 0
+func (nst *Instrument) Prepare(uint64) {
+	for i := range nst.out {
+		if nst.off {
+			nst.out[i] = 0
 		} else {
-			// if inst.in != nil {
-			// inst.in.Prepare(tc)
-			// }
-			inst.out[i] = inst.in.Samples()[i]
+			nst.out[i] = nst.in.Sample(i)
 		}
 
-		inst.count++ // TODO overflows at some point i suppose
-		if inst.count == inst.offat {
-			inst.Off()
+		if nst.tm > 0 {
+			nst.tm--
+			if nst.tm == 0 {
+				nst.Off()
+			}
 		}
 	}
 }

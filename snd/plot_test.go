@@ -77,7 +77,7 @@ func xyer(out []float64) plotter.XYs {
 
 func TestPlotOscil(t *testing.T) {
 	plt := newplttr()
-	osc := Osc(Sine(), 440, nil)
+	osc := NewOscil(Sine(), 440, nil)
 	plt.add("Sine 440Hz", osc)
 	plt.proc(4)
 	if err := plt.save("oscil.png"); err != nil {
@@ -90,11 +90,11 @@ func TestPlotPhaser(t *testing.T) {
 	sawtooth := Sawtooth(4)
 	square := Square(4)
 
-	osc0 := Osc(sawtooth, 440, nil)
+	osc0 := NewOscil(sawtooth, 440, nil)
 	plt.add("oscil", osc0)
 
-	osc1 := Osc(sawtooth, 440, nil)
-	osc1.SetPhase(1, Osc(square, 440*0.8, nil))
+	osc1 := NewOscil(sawtooth, 440, nil)
+	osc1.SetPhase(1, NewOscil(square, 440*0.8, nil))
 	plt.add("phased", osc1)
 
 	plt.proc(8)
@@ -118,10 +118,10 @@ func TestPlotADSR(t *testing.T) {
 func TestLowPass(t *testing.T) {
 	plt := newplttr()
 
-	mix0 := NewMixer(Osc(Sine(), 520, nil), Osc(Sine(), 440, nil))
+	mix0 := NewMixer(NewOscil(Sine(), 520, nil), NewOscil(Sine(), 440, nil))
 	plt.add("Mix Sine [520Hz, 440Hz]", mix0)
 
-	mix1 := NewMixer(Osc(Sine(), 520, nil), Osc(Sine(), 440, nil))
+	mix1 := NewMixer(NewOscil(Sine(), 520, nil), NewOscil(Sine(), 440, nil))
 	lp := NewLowPass(500, mix1)
 	plt.add("Low Pass [500Hz]", lp)
 

@@ -46,7 +46,7 @@ var (
 	pianomod *snd.ADSR
 	pianowf  *snd.Waveform
 
-	loop snd.Looper
+	loop *snd.Loop
 
 	mix   *snd.Mixer
 	mixwf *snd.Waveform
@@ -65,7 +65,7 @@ type Key struct {
 }
 
 func NewKeyOsc(freq float64) *Key {
-	osc := snd.Osc(harm, freq, nil)
+	osc := snd.NewOscil(harm, freq, nil)
 	instr := snd.NewInstrument(osc)
 	instr.Off()
 
@@ -77,8 +77,8 @@ func NewKey(freq float64) *Key {
 	release := 350 * ms
 
 	// TODO http://www.soundonsound.com/sos/nov02/articles/synthsecrets1102.asp
-	osc0 := snd.Osc(sawtooth, freq, snd.Osc(sine, 2, nil))
-	osc0.SetPhase(1, snd.Osc(square, freq*0.4, nil))
+	osc0 := snd.NewOscil(sawtooth, freq, snd.NewOscil(sine, 2, nil))
+	osc0.SetPhase(1, snd.NewOscil(square, freq*0.4, nil))
 	comb := snd.NewComb(0.8, 10*ms, osc0)
 	adsr := snd.NewADSR(50*ms, 500*ms, 100*ms, release, 0.4, 1, comb)
 
@@ -96,9 +96,9 @@ func NewKey(freq float64) *Key {
 
 func (key *Key) Press() {
 	key.On()
-	key.OffIn(key.total)
+	// key.OffIn(key.total)
 	if key.adsr != nil {
-		// key.adsr.Sustain()
+		key.adsr.Sustain()
 		key.adsr.Restart()
 	}
 }
@@ -130,7 +130,7 @@ func onStart(ctx gl.Context) {
 		mix.Append(keys[i])
 	}
 
-	loop = snd.Loop(5*time.Second, mix)
+	loop = snd.NewLoop(5*time.Second, mix)
 	mixloop := snd.NewMixer(mix, loop)
 
 	lp := snd.NewLowPass(1500, mixloop)
@@ -173,10 +173,10 @@ func onStart(ctx gl.Context) {
 	// pianowf.Align(-0.999)
 
 	// experimental bits
-	somemod = snd.Osc(harm, 2, nil)
+	somemod = snd.NewOscil(harm, 2, nil)
 	// interesting frequencies with first key
 	// 520, 695
-	someosc = snd.Osc(harm, 695, nil)
+	someosc = snd.NewOscil(harm, 695, nil)
 	// mix.Append(someosc)
 
 	// somedelay := snd.NewDelay(time.Second, someosc)

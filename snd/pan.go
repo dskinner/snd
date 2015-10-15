@@ -5,56 +5,52 @@ import "math"
 var (
 	onesqrt2 = 1 / math.Sqrt(2)
 
-	// panpos [panres*2]float64
 	panres float64 = 512
-	panpos [1024]float64
+	panfac [1024]float64
 )
 
 func init() {
-	for i := range panpos {
+	for i := range panfac {
 		n := float64(i)/panres - 1
-		panpos[i] = onesqrt2 * (1 - n) / math.Sqrt(1+(n*n))
+		panfac[i] = onesqrt2 * (1 - n) / math.Sqrt(1+(n*n))
 	}
 }
 
-// TODO refactor this mess
-func getpanpos(amt float64, ch int) float64 {
-	if -1 <= amt && amt <= 1 {
-		if ch == 0 {
-			return panpos[int(panres*(1+amt))]
-		}
-		return panpos[int(panres*(1-amt))]
-	} else if amt < -1 { // consider making this == or removing entirely bc; amt ∈ [-1..1]
-		if ch == 0 {
-			return panpos[0]
-		}
-		return 0
-	} else {
-		if ch == 0 {
-			return 0
-		}
-		return panpos[0]
+func getpanfac(xf float64) float64 {
+	if xf > 1 {
+		xf = 1
+	} else if xf < -1 {
+		xf = -1
 	}
+	return panfac[int(panres*(1+xf))]
 }
 
 type Pan struct {
 	*stereo
-	amt float64
+	xf float64
 }
 
-func NewPan(amt float64, in Sound) *Pan {
-	return &Pan{newstereo(in), amt}
+func NewPan(xf float64, in Sound) *Pan {
+	return &Pan{newstereo(in), xf}
 }
 
-// SetAmount takes an input pans it across two outputs by an amount given as -1 to 1.
-func (p *Pan) SetAmount(amt float64) { p.amt = amt }
+// SetAmount sets amount an input is panned across two outputs where amt belongs to [-1..1].
+func (pan *Pan) SetAmount(xf float64) { pan.xf = xf }
 
 // Prepare interleaves the left and right channels.
-func (p *Pan) Prepare(uint64) {
-	for i, x := range p.in.Samples() {
-		p.l.out[i] = x * getpanpos(p.amt, 0)
-		p.r.out[i] = x * getpanpos(p.amt, 1)
-		p.out[i*2] = p.l.out[i]
-		p.out[i*2+1] = p.r.out[i]
+func (pan *Pan) Prepare(uint64) {
+	for i, x := range pan.in.Samples() {
+		if pan.l.off {
+			pan.l.out[i] = 0
+		} else {
+			pan.l.out[i] = x * getpanfac(pan.xf)
+		}
+		if pan.r.off {
+			pan.r.out[i] = 0
+		} else {
+			pan.r.out[i] = x * getpanfac(pan.xf)
+		}
+		pan.out[i*2] = pan.l.out[i]
+		pan.out[i*2+1] = pan.r.out[i]
 	}
 }

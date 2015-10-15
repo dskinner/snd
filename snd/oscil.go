@@ -10,7 +10,7 @@ type Oscillator interface {
 	SetPhase(amt float64, mod Sound)
 }
 
-type oscil struct {
+type Oscil struct {
 	*mono
 
 	// TODO how much of this can I just make exported?
@@ -29,8 +29,8 @@ type oscil struct {
 	phasemod Sound
 }
 
-func Osc(h Harm, freq float64, freqmod Sound) Oscillator {
-	return &oscil{
+func NewOscil(h Harm, freq float64, freqmod Sound) Oscillator {
+	return &Oscil{
 		mono:    newmono(nil),
 		h:       h,
 		freq:    freq,
@@ -39,47 +39,47 @@ func Osc(h Harm, freq float64, freqmod Sound) Oscillator {
 	}
 }
 
-func (osc *oscil) Freq(i int) float64 {
+func (osc *Oscil) Freq(i int) float64 {
 	if osc.freqmod != nil {
 		return osc.freq * osc.freqmod.Sample(i)
 	}
 	return osc.freq
 }
 
-func (osc *oscil) SetFreq(hz float64, mod Sound) {
+func (osc *Oscil) SetFreq(hz float64, mod Sound) {
 	osc.freq = hz
 	osc.freqmod = mod
 }
 
-func (osc *oscil) Amp(i int) float64 {
+func (osc *Oscil) Amp(i int) float64 {
 	if osc.ampmod != nil {
 		return osc.amp * osc.ampmod.Sample(i)
 	}
 	return osc.amp
 }
 
-func (osc *oscil) SetAmp(mult float64, mod Sound) {
+func (osc *Oscil) SetAmp(mult float64, mod Sound) {
 	osc.amp = mult
 	osc.ampmod = mod
 }
 
-func (osc *oscil) Phase(i int) float64 {
+func (osc *Oscil) Phase(i int) float64 {
 	if osc.phasemod != nil {
 		return float64(len(osc.h)) * osc.phasemod.Sample(i)
 	}
 	return 0
 }
 
-func (osc *oscil) SetPhase(amt float64, mod Sound) {
-	osc.phase = amt
+func (osc *Oscil) SetPhase(f float64, mod Sound) {
+	osc.phase = f
 	osc.phasemod = mod
 }
 
-func (osc *oscil) Inputs() []Sound {
+func (osc *Oscil) Inputs() []Sound {
 	return []Sound{osc.freqmod, osc.ampmod, osc.phasemod}
 }
 
-func (osc *oscil) Prepare(tc uint64) {
+func (osc *Oscil) Prepare(tc uint64) {
 	var (
 		l float64 = float64(len(osc.h))
 		f float64 = l / osc.sr

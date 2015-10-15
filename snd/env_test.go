@@ -6,10 +6,11 @@ import (
 )
 
 func BenchmarkADSR(b *testing.B) {
-	adsr := NewADSR(100*time.Second, 200*time.Second, 300*time.Second, 400*time.Second, 0.7, 1, nil)
+	ms := time.Millisecond
+	env := NewADSR(5*ms, 10*ms, 15*ms, 20*ms, 0.7, 1, nil)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		adsr.Prepare(uint64(n))
+		env.Prepare(uint64(n))
 	}
 }

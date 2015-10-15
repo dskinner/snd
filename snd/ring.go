@@ -1,29 +1,25 @@
 package snd
 
-// ring modulator
-type ring struct {
+// Ring modulator
+type Ring struct {
 	*mono
 	in0, in1 Sound
 }
 
-func Ring(in0, in1 Sound) Sound {
-	return &ring{
-		mono: newmono(nil),
-		in0:  in0,
-		in1:  in1,
-	}
+func NewRing(in0, in1 Sound) *Ring {
+	return &Ring{newmono(nil), in0, in1}
 }
 
-func (ring *ring) Inputs() []Sound {
-	return []Sound{ring.in0, ring.in1}
+func (ng *Ring) Inputs() []Sound {
+	return []Sound{ng.in0, ng.in1}
 }
 
-func (ring *ring) Prepare(uint64) {
-	for i := range ring.out {
-		if ring.off {
-			ring.out[i] = 0
+func (ng *Ring) Prepare(uint64) {
+	for i := range ng.out {
+		if ng.off {
+			ng.out[i] = 0
 		} else {
-			ring.out[i] = ring.in0.Samples()[i] * ring.in1.Samples()[i]
+			ng.out[i] = ng.in0.Sample(i) * ng.in1.Sample(i)
 		}
 	}
 }

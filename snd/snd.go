@@ -1,3 +1,19 @@
+// Package snd etc
+//
+// Functions that take a time.Duration argument approximate the value to the
+// closest number of frames. For example, if sample rate is 44.1kHz and duration
+// is 75ms, this results in the argument representing 3307 frames which is
+// approximately 74.99ms.
+//
+// TODO double check benchmarks, results may be incorrect due to new dispatcher scheme
+// TODO pick a consistent api style
+// TODO many sounds don't respect off, double check everything
+// TODO many sounds only support mono
+// TODO support upsampling and downsampling
+// TODO many Prepare funcs need to check if their inputs have altered state (turned on/off, etc)
+// during sampling, not just before or after, otherwise this introduces a delay. For example,
+// the current defaults of 256 frame length buffer at 44.1kHz would result in a 5.8ms delay.
+// Solution needs to account for the updated method for dispatching prepares.
 package snd // import "dasa.cc/piano/snd"
 import (
 	"fmt"
@@ -111,7 +127,7 @@ type Sound interface {
 	Off()
 	On()
 
-	// Inputs should return all inputs a Sound wants discoverable (for auto-prepare).
+	// Inputs should return all inputs a Sound wants discoverable (for dispatcher).
 	Inputs() []Sound
 }
 

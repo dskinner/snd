@@ -1,118 +1,102 @@
 package snd
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type ADSR struct {
 	*mono
 
-	// time taken for signal to change from 0 to maxamp.
-	attack float64
-	// time taken for signal to change from maxamp to susamp.
-	decay float64
-	// time spent locking signal at susamp.
-	sustain float64
-	// time taken after sustain period for signal to change from susamp to 0.
-	release float64
+	susamp, maxamp float64
 
-	// sustain amplitude multiplier
-	susamp float64
-	// max amplitutde multiplier after rise
-	maxamp float64
-
-	// sustaining locks envelope by pausing count during sustain period.
+	// sustaining locks envelope
 	sustaining bool
 
-	// track time in samples
-	count float64
-	// envelope duration
-	duration float64
+	// number of frames for attack, decay, sustain, release
+	f0, f1, f2, f3 float64
+
+	// period end markers for attack, decay, sustain, release
+	p0, p1, p2, p3 float64
+
+	// current index in envelope
+	pn float64
 }
 
+// NewADSR
+// attack
+// time taken for signal to change from 0 to maxamp.
+// decay
+// time taken for signal to change from maxamp to susamp.
+// sustain
+// time spent locking signal at susamp.
+// release
+// time taken after sustain period for signal to change from susamp to 0.
 func NewADSR(attack, decay, sustain, release time.Duration, susamp, maxamp float64, in Sound) *ADSR {
-	sr := DefaultSampleRate
-	if in != nil {
-		sr = in.SampleRate()
+	env := &ADSR{
+		mono:   newmono(in),
+		susamp: susamp,
+		maxamp: maxamp,
 	}
-	return &ADSR{
-		mono:     newmono(in),
-		attack:   sr * float64(attack) / float64(time.Second),
-		decay:    sr * float64(decay) / float64(time.Second),
-		sustain:  sr * float64(sustain) / float64(time.Second),
-		release:  sr * float64(release) / float64(time.Second),
-		duration: sr * float64(attack+decay+sustain+release) / float64(time.Second),
-		susamp:   susamp,
-		maxamp:   maxamp,
-	}
+	sr := env.SampleRate()
+	env.f0 = float64(dtof(attack, sr))
+	env.f1 = float64(dtof(decay, sr))
+	env.f2 = float64(dtof(sustain, sr))
+	env.f3 = float64(dtof(release, sr))
+	env.p0 = env.f0
+	env.p1 = env.f1 + env.p0
+	env.p2 = env.f2 + env.p1 + env.p0
+	env.p3 = env.f3 + env.p2 + env.p1 + env.p0
+	return env
 }
+
+// Restart resets envelope to start from attack period.
+func (env *ADSR) Restart() { env.pn = 0 }
 
 // Sustain locks envelope when sustain period is reached.
 func (env *ADSR) Sustain() { env.sustaining = true }
 
 // Release immediately releases envelope from anywhere and starts release period.
-// TODO don't enter release if already in release
-func (env *ADSR) Release() bool {
+func (env *ADSR) Release() (ok bool) {
 	env.sustaining = false
-	if env.count < (env.duration - env.release) {
-		env.count = env.duration - env.release + 1
-		return true
+	if ok = env.pn <= env.p2; ok {
+		env.pn = env.p2 + 1
 	}
-	return false
+	return
 }
-
-// Restart resets envelope to start from attack period.
-func (env *ADSR) Restart() {
-	env.count = 0
-}
-
-// TODO timing attack appears to be off. The value tested for is 200ms but result is 168ms.
-// var (
-// t          time.Time
-// printStart sync.Once
-// printEnd   sync.Once
-// )
 
 func (env *ADSR) Prepare(uint64) {
 	for i := range env.out {
 		if env.off {
 			env.out[i] = 0
 		} else {
-			// if env.in != nil {
-			// env.in.Prepare(tc)
-			// }
-
 			amp := 1.0
-			if env.count == env.duration {
-				env.count = 0
-			}
-			if env.count < env.attack {
-				amp = env.maxamp / env.attack * env.count
-				// printStart.Do(func() {
-				// t = time.Now()
-				// log.Println("attack start", env.amp)
-				// })
-			}
-			if env.count >= env.attack && env.count < (env.attack+env.decay) {
-				// printEnd.Do(func() {
-				// log.Println("attack finished", time.Now().Sub(t))
-				// })
-				amp = ((env.susamp-env.maxamp)/env.decay)*(env.count-env.attack) + env.maxamp
-			}
-			if env.count >= (env.attack+env.decay) && env.count <= (env.duration-env.release) {
+
+			switch {
+			case env.pn < env.p0:
+				amp = env.maxamp / env.f0 * env.pn
+			case env.pn < env.p1:
+				amp = env.maxamp - (env.maxamp-env.susamp)/env.f1*(env.pn-env.p0)
+			case env.pn < env.p2:
 				amp = env.susamp
+			case env.sustaining:
+				amp = env.susamp
+				env.pn--
+			case env.pn < env.p3:
+				amp = ((-env.susamp)/env.f3)*(env.pn-env.p2) + env.susamp
+			default:
+				panic(fmt.Errorf("ADSR.pn=%v out of bounds", env.pn))
 			}
-			if env.count > (env.duration - env.release) {
-				if env.sustaining {
-					amp = env.susamp
-					env.count--
-				} else {
-					amp = ((0-env.susamp)/env.release)*(env.count-(env.duration-env.release)) + env.susamp
-				}
+
+			env.pn++
+			if env.pn == env.p3 {
+				env.pn = 0
 			}
-			env.count++
+
 			if env.in == nil {
 				env.out[i] = amp
 			} else {
-				env.out[i] = amp * env.in.Samples()[i]
+				env.out[i] = amp * env.in.Sample(i)
 			}
 		}
 	}

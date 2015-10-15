@@ -4,7 +4,7 @@ import "testing"
 
 func BenchmarkMixer(b *testing.B) {
 	mix := NewMixer()
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 2; i++ {
 		mix.Append(newunit())
 	}
 	b.ReportAllocs()

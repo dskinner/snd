@@ -21,15 +21,15 @@ func (u *unit) Prepare(uint64) {}
 func mksound() Sound {
 	mix := NewMixer()
 	for i := 0; i < 12; i++ {
-		oscil := Osc(Sawtooth(4), 440, Osc(Sine(), 2, nil))
-		oscil.SetPhase(1, Osc(Square(4), 200, nil))
+		oscil := NewOscil(Sawtooth(4), 440, NewOscil(Sine(), 2, nil))
+		oscil.SetPhase(1, NewOscil(Square(4), 200, nil))
 
 		comb := NewComb(0.8, 10*time.Millisecond, oscil)
 		adsr := NewADSR(50*time.Millisecond, 500*time.Millisecond, 100*time.Millisecond, 350*time.Millisecond, 0.4, 1, comb)
 		instr := NewInstrument(adsr)
 		mix.Append(instr)
 	}
-	loop := Loop(5*time.Second, mix)
+	loop := NewLoop(5*time.Second, mix)
 	mixloop := NewMixer(mix, loop)
 	lp := NewLowPass(1500, mixloop)
 	mixwf, err := NewWaveform(nil, 4, lp)

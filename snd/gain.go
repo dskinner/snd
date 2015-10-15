@@ -1,16 +1,20 @@
 package snd
 
-type gain struct {
+type Gain struct {
 	*mono
-	mult float64
+	a float64
 }
 
-func Gain(mult float64, in Sound) Sound { return &gain{newmono(in), mult} }
+func NewGain(a float64, in Sound) Sound {
+	return &Gain{newmono(in), a}
+}
 
-func (g *gain) SetMult(mult float64) { g.mult = mult }
-
-func (g *gain) Prepare(tc uint64) {
-	for i, x := range g.in.Samples() {
-		g.out[i] = x * g.mult
+func (gn *Gain) Prepare(uint64) {
+	for i, x := range gn.in.Samples() {
+		if gn.off {
+			gn.out[i] = 0
+		} else {
+			gn.out[i] = gn.a * x
+		}
 	}
 }
