@@ -98,7 +98,7 @@ func GetInputs(sd Sound) []*Input {
 // TODO janky func
 func getinputs(sd Sound, wt int, out *[]*Input) {
 	for _, in := range sd.Inputs() {
-		if in == nil {
+		if in == nil { // TODO for !realtime || in.IsOff() {
 			continue
 		}
 		at := -1

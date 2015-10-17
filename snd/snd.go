@@ -18,6 +18,7 @@ package snd // import "dasa.cc/piano/snd"
 import (
 	"fmt"
 	"math"
+	"time"
 )
 
 // TODO
@@ -97,6 +98,16 @@ func (hz Hertz) Normalized(sr float64) float64 {
 	return hz.Angular() / sr
 }
 
+func (hz Hertz) String() string {
+	return fmt.Sprintf("%vHz", float64(hz))
+}
+
+type BPM float64
+
+func (bpm BPM) Dur() time.Duration {
+	return time.Duration(float64(time.Minute) / float64(bpm))
+}
+
 type Sound interface {
 	SampleRate() float64
 	Channels() int
@@ -124,8 +135,9 @@ type Sound interface {
 	// Sample returns the sample at pos mod BufferLen().
 	Sample(pos int) float64
 
-	Off()
 	On()
+	Off()
+	IsOff() bool
 
 	// Inputs should return all inputs a Sound wants discoverable (for dispatcher).
 	Inputs() []Sound
@@ -161,25 +173,30 @@ func newmono(in Sound) *mono {
 	}
 }
 
-func (s *mono) SampleRate() float64  { return s.sr }
-func (s *mono) Samples() []float64   { return s.out }
-func (s *mono) Sample(i int) float64 { return s.out[i&(len(s.out)-1)] }
-func (s *mono) Channels() int        { return 1 }
-func (s *mono) BufferLen() int       { return len(s.out) }
-func (s *mono) SetBufferLen(n int) {
+func (sd *mono) SampleRate() float64 { return sd.sr }
+func (sd *mono) Samples() []float64 {
+	// out := make([]float64, len(sd.out))
+	// copy(out, sd.out)
+	// return out
+	return sd.out
+}
+func (sd *mono) Sample(i int) float64 { return sd.out[i&(len(sd.out)-1)] }
+func (sd *mono) Channels() int        { return 1 }
+func (sd *mono) BufferLen() int       { return len(sd.out) }
+func (sd *mono) SetBufferLen(n int) {
 	if n == 0 || n&(n-1) != 0 {
 		panic(fmt.Errorf("snd: SetBufferLen(%v) not a power of 2", n))
 	}
-	s.out = make([]float64, n)
+	sd.out = make([]float64, n)
 }
-func (s *mono) IsOff() bool { return s.off }
-func (s *mono) Off()        { s.off = true }
-func (s *mono) On()         { s.off = false }
+func (sd *mono) IsOff() bool { return sd.off }
+func (sd *mono) Off()        { sd.off = true }
+func (sd *mono) On()         { sd.off = false }
 
-func (s *mono) Inputs() []Sound { return []Sound{s.in} }
+func (sd *mono) Inputs() []Sound { return []Sound{sd.in} }
 
 // TODO consider not having mono or stereo actually implement sound by remove this
-func (s *mono) Prepare(uint64) {}
+func (sd *mono) Prepare(uint64) {}
 
 type stereo struct {
 	l, r *mono
@@ -197,21 +214,26 @@ func newstereo(in Sound) *stereo {
 	}
 }
 
-func (s *stereo) SampleRate() float64  { return s.l.sr }
-func (s *stereo) Samples() []float64   { return s.out }
-func (s *stereo) Sample(i int) float64 { return s.out[i%len(s.out)] }
-func (s *stereo) Channels() int        { return 2 }
-func (s *stereo) BufferLen() int       { return len(s.out) }
-func (s *stereo) SetBufferLen(n int) {
+func (sd *stereo) SampleRate() float64 { return sd.l.sr }
+func (sd *stereo) Samples() []float64 {
+	// out := make([]float64, len(sd.out))
+	// copy(out, sd.out)
+	// return out
+	return sd.out
+}
+func (sd *stereo) Sample(i int) float64 { return sd.out[i&(len(sd.out)-1)] }
+func (sd *stereo) Channels() int        { return 2 }
+func (sd *stereo) BufferLen() int       { return len(sd.out) }
+func (sd *stereo) SetBufferLen(n int) {
 	if n == 0 || n&(n-1) != 0 {
 		panic(fmt.Errorf("snd: SetBufferLen(%v) not a power of 2", n))
 	}
-	s.out = make([]float64, n*2)
+	sd.out = make([]float64, n*2)
 }
-func (s *stereo) IsOff() bool { return s.l.off || s.r.off }
-func (s *stereo) Off()        { s.l.off, s.r.off = false, false }
-func (s *stereo) On()         { s.l.off, s.r.off = true, true }
+func (sd *stereo) IsOff() bool { return sd.l.off || sd.r.off }
+func (sd *stereo) Off()        { sd.l.off, sd.r.off = false, false }
+func (sd *stereo) On()         { sd.l.off, sd.r.off = true, true }
 
-func (s *stereo) Inputs() []Sound { return []Sound{s.in} }
+func (sd *stereo) Inputs() []Sound { return []Sound{sd.in} }
 
-func (s *stereo) Prepare(tc uint64) {}
+func (sd *stereo) Prepare(tc uint64) {}

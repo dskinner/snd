@@ -32,8 +32,8 @@ var (
 
 	ms = time.Millisecond
 
-	sawtooth = snd.Sawtooth(4)
-	square   = snd.Square(4)
+	sawtooth = snd.Sawtooth(512)
+	square   = snd.Square(512)
 	pulse    = snd.Pulse(4)
 	sine     = snd.Sine()
 
@@ -53,64 +53,85 @@ var (
 
 	somemod snd.Oscillator
 	someosc snd.Oscillator
+
+	// 0.42659999999999976
+	// 0.4275
+	// 0.50429
+	// 0.2488
+	phasefac float64 = 0.4275
 )
 
 type Key struct {
 	*snd.Instrument
-	adsr    *snd.ADSR
+	osc     *snd.Oscil
+	adsr0   *snd.ADSR
+	adsr1   *snd.ADSR
 	release time.Duration
-	total   time.Duration
 
 	freq float64
 }
 
-func NewKeyOsc(freq float64) *Key {
-	osc := snd.NewOscil(harm, freq, nil)
-	instr := snd.NewInstrument(osc)
-	instr.Off()
+// func NewKeyOsc(freq float64) *Key {
+// osc := snd.NewOscil(harm, freq, nil)
+// nst := snd.NewInstrument(osc)
+// nst.Off()
+// return &Key{nst, osc, nil, 0, freq}
+// }
 
-	return &Key{instr, nil, 0, 0, freq}
-}
-
-func NewKey(freq float64) *Key {
+func NewKey(idx int) *Key {
+	freq := notes[idx]
+	c := 15.0
+	freq1 := freq - ((notes[idx] - notes[idx-1]) / 100 * c)
+	freq2 := freq + ((notes[idx+1] - notes[idx]) / 100 * c)
 	// adsr release and also offin value for instrument
-	release := 350 * ms
+	release := 1350 * ms
 
 	// TODO http://www.soundonsound.com/sos/nov02/articles/synthsecrets1102.asp
-	osc0 := snd.NewOscil(sawtooth, freq, snd.NewOscil(sine, 2, nil))
-	osc0.SetPhase(1, snd.NewOscil(square, freq*0.4, nil))
-	comb := snd.NewComb(0.8, 10*ms, osc0)
-	adsr := snd.NewADSR(50*ms, 500*ms, 100*ms, release, 0.4, 1, comb)
+	osc0 := snd.NewOscil(sawtooth, freq, nil) // snd.NewOscil(sine, 2, nil))
+	osc0.SetPhase(1, snd.NewOscil(square, freq*phasefac, nil))
+	osc1 := snd.NewOscil(sawtooth, freq1, nil)
+	osc1.SetPhase(1, snd.NewOscil(square, freq1*phasefac, nil))
+	osc2 := snd.NewOscil(sawtooth, freq2, nil)
+	osc2.SetPhase(1, snd.NewOscil(square, freq2*phasefac, nil))
+	oscmix := snd.NewMixer(osc0, osc1, osc2)
+	// oscgain := snd.NewGain(snd.Decibel(-5).Amp(), oscmix)
 
-	instr := snd.NewInstrument(adsr)
-	instr.Off()
+	adsr0 := snd.NewADSR(30*ms, 50*ms, 200*ms, release, 0.4, 1, oscmix)
+	adsr1 := snd.NewADSR(0*ms, 280*ms, 0*ms, release, 0.4, 1, oscmix)
+	adsrmix := snd.NewMixer(adsr0, adsr1)
+	adsrgain := snd.NewGain(snd.Decibel(-8).Amp(), adsrmix)
+	nst := snd.NewInstrument(adsrgain)
+	nst.Off()
 
 	return &Key{
-		Instrument: instr,
-		adsr:       adsr,
+		Instrument: nst,
+		osc:        osc0,
+		adsr0:      adsr0,
+		adsr1:      adsr1,
 		release:    release,
-		total:      1000 * ms,
 		freq:       freq,
 	}
 }
 
 func (key *Key) Press() {
 	key.On()
-	// key.OffIn(key.total)
-	if key.adsr != nil {
-		key.adsr.Sustain()
-		key.adsr.Restart()
-	}
+	key.OffIn(key.adsr0.Dur())
+	// if key.adsr != nil {
+	// key.adsr.Sustain()
+	key.adsr0.Restart()
+	key.adsr1.Restart()
+	// }
 }
 
 func (key *Key) Release() {
-	if key.adsr != nil {
-		if key.adsr.Release() {
-			key.OffIn(key.release)
-		}
-	} else {
-		key.Off()
+	// if key.adsr != nil {
+	if key.adsr0.Release() {
+		key.adsr1.Release()
+		key.OffIn(key.release)
 	}
+	// } else {
+	// key.Off()
+	// }
 }
 
 func onStart(ctx gl.Context) {
@@ -125,23 +146,31 @@ func onStart(ctx gl.Context) {
 	var err error
 
 	mix = snd.NewMixer()
+
+	keymix := snd.NewMixer()
 	for i := range keys {
-		keys[i] = NewKey(notes[51+i]) // notes[51] is Major C
-		mix.Append(keys[i])
+		keys[i] = NewKey(51 + i) // notes[51] is Major C
+		keymix.Append(keys[i])
 	}
+	keylp := snd.NewLowPass(773, keymix)
 
-	loop = snd.NewLoop(5*time.Second, mix)
-	mixloop := snd.NewMixer(mix, loop)
+	dly := snd.NewDelay(29*time.Millisecond, keylp)
+	tap0 := snd.NewTap(19*time.Millisecond, dly)
+	tap1 := snd.NewTap(13*time.Millisecond, dly)
+	tap2 := snd.NewTap(7*time.Millisecond, dly)
+	cmb := snd.NewComb(snd.Decibel(-3).Amp(), 11*time.Millisecond, snd.NewMixer(dly, tap0, tap1, tap2))
+	dlymix := snd.NewMixer(cmb, keylp)
+	loop = snd.NewLoop(5*time.Second, dlymix)
+	loopmix := snd.NewMixer(dlymix, loop)
 
-	lp := snd.NewLowPass(1500, mixloop)
-
-	mixwf, err = snd.NewWaveform(ctx, 4, lp)
+	// lp := snd.NewLowPass(800, loopmix)
+	master := snd.NewMixer(loopmix)
+	mixwf, err = snd.NewWaveform(ctx, 4, master)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	pan := snd.NewPan(0, mixwf)
-	al.AddSource(pan)
 
 	// piano graphics
 
@@ -164,7 +193,7 @@ func onStart(ctx gl.Context) {
 	// pianomod.SetBufferLen(1024)
 
 	piano = NewPiano()
-	// piano.Sound.SetAmp(1, pianomod)
+	// piano.Sound.SetAmp(1, snd.NewDamp(time.Second, nil))
 
 	pianowf, err = snd.NewWaveform(ctx, 1, piano)
 	if err != nil {
@@ -177,15 +206,16 @@ func onStart(ctx gl.Context) {
 	// interesting frequencies with first key
 	// 520, 695
 	someosc = snd.NewOscil(harm, 695, nil)
-	// mix.Append(someosc)
 
-	// somedelay := snd.NewDelay(time.Second, someosc)
-	// for i := 1; i < 10; i++ {
-	// dur := time.Duration(int64(13*i)) * ms
-	// tap := snd.NewTap(dur, somedelay)
-	// mix.Append(tap)
-	// }
+	// mtrosc := snd.NewOscil(harm, 220, nil)
+	// mtrdmp := snd.NewDamp(snd.BPM(80).Dur(), mtrosc)
+	// mtrdmp1 := snd.NewDamp(snd.BPM(100).Dur(), mtrosc)
+	// mtrdrv := snd.NewDrive(snd.BPM(100).Dur(), mtrosc)
+	// mtrmix := snd.NewMixer(mtrdmp, mtrdmp1, mtrdrv)
+	// master.Append(mtrmix)
 
+	//
+	al.AddSource(pan)
 }
 
 func onStop() {
@@ -228,20 +258,30 @@ func onTouch(ev touch.Event) {
 		case touch.TypeBegin:
 			lastY = ev.Y
 			// TODO needs ui control
-			loop.Record()
+			// loop.Record()
 		case touch.TypeMove:
 			dt := (ev.Y - lastY)
 			lastY = ev.Y
-			freq := lastFreq - float64(dt)
-			if freq > 20000 {
-				freq = 20000
+			pm := phasefac - (float64(dt) * 0.0001)
+			if pm <= 0 {
+				pm = 0.0001
 			}
-			if freq < 0 {
-				freq = 0
+			log.Println("phasefac", pm)
+			phasefac = pm
+			for _, key := range keys {
+				key.osc.SetPhase(1, snd.NewOscil(square, key.freq*pm, nil))
 			}
-			someosc.SetFreq(freq, nil) // somemod
-			log.Println("freq:", freq)
-			lastFreq = freq
+			al.Notify()
+			// freq := lastFreq - float64(dt)
+			// if freq > 20000 {
+			// freq = 20000
+			// }
+			// if freq < 0 {
+			// freq = 0
+			// }
+			// someosc.SetFreq(freq, nil) // somemod
+			// log.Println("freq:", freq)
+			// lastFreq = freq
 		}
 		// TODO drag finger off piano and it still plays, shouldn't return here
 		// to allow TypeMove to figure out what to turn off

@@ -120,6 +120,12 @@ func AddSource(in snd.Sound) error {
 	return nil
 }
 
+func Notify() {
+	if hwa.in != nil {
+		hwa.inputs = snd.GetInputs(hwa.in)
+	}
+}
+
 func SoftLatency() time.Duration {
 	nframes := float64(hwa.in.BufferLen() / hwa.in.Channels())
 	return time.Duration(nframes * float64(hwa.buf.size) / hwa.in.SampleRate() * float64(time.Second))
@@ -164,7 +170,12 @@ func Tick() {
 	for _, buf := range bufs {
 		hwa.tc++
 
+		// TODO
+		// if !realtime {
+		// hwa.inputs = snd.GetInputs(hwa.in)
+		// }
 		dp.Dispatch(hwa.tc, hwa.inputs...)
+
 		for i, x := range hwa.in.Samples() {
 			// clip
 			if x > 1 {
@@ -183,7 +194,9 @@ func Tick() {
 		}
 	}
 
-	hwa.source.QueueBuffers(bufs)
+	if len(bufs) != 0 {
+		hwa.source.QueueBuffers(bufs)
+	}
 	if code := al.Error(); code != 0 {
 		log.Printf("snd/al: queue buffer failed [err=%v]\n", code)
 	}

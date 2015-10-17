@@ -135,7 +135,7 @@ func (wf *Waveform) Paint(ctx gl.Context, xps, yps, width, height float32) {
 	}
 
 	for i, x := range samples {
-		// make user aware of clipping, even if inaudible.
+		// clip
 		if x > 1 {
 			x = 1
 		} else if x < -1 {

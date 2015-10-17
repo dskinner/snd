@@ -29,7 +29,7 @@ type Oscil struct {
 	phasemod Sound
 }
 
-func NewOscil(h Harm, freq float64, freqmod Sound) Oscillator {
+func NewOscil(h Harm, freq float64, freqmod Sound) *Oscil {
 	return &Oscil{
 		mono:    newmono(nil),
 		h:       h,
