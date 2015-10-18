@@ -40,24 +40,13 @@ func (sig *Discrete) Normalize() {
 	(*sig)[len(*sig)-1] = (*sig)[0]
 }
 
-// Add performs additive synthesis.
-func (sig *Discrete) Add(a Discrete, ptt int) {
-	if len(*sig) != len(a) {
-		panic("lengths do not match")
-	}
-	// https://en.wikipedia.org/wiki/Additive_synthesis
-	// http://music.columbia.edu/cmc/MusicAndComputers/chapter4/04_02.php
+// Add performs additive synthesis for the given partial harmonic, pt.
+func (sig *Discrete) Add(a Discrete, pt int) {
 	for i := range *sig {
-		j := i * ptt % (len(a) - 1)
-		(*sig)[i] += a[j] * (1 / float64(ptt))
+		j := i * pt % (len(a) - 1)
+		(*sig)[i] += a[j] * (1 / float64(pt))
 	}
-	sig.Normalize()
 }
-
-// SynthesisFunc produces a discrete signal constructed using additive synthesis.
-// TODO how could this be removed and perform additive/subtractive synthesis via
-// methods on Discrete.
-type SynthesisFunc func(h int, ph float64) Discrete
 
 // SineFunc represents the continuous signal of a sine wave.
 func SineFunc(t float64) float64 {
@@ -101,39 +90,23 @@ func Sawtooth() (sig Discrete) {
 	return
 }
 
-// SquareSynthesis returns a discrete signal of a square wave constructed
-// using additive synthesis with h harmonics and ph phase.
-func SquareSynthesis(h int, ph float64) Discrete {
-	sig := make(Discrete, defaultDiscreteLen)
-	for i := 0.0; i < defaultDiscreteLen; i++ {
-		t := i / defaultDiscreteLen
-		for n := 1.0; n <= float64(h); n += 2 {
-			sig[int(i)] += (1 / n) * math.Sin(n*(twopi*t)+ph)
-		}
+// SquareSynth adds odd harmonic partials up to n creating a sinusoidal wave.
+func SquareSynthesis(n int) Discrete {
+	fnd := Sine()
+	sig := Sine()
+	for i := 3; i <= n; i += 2 {
+		sig.Add(fnd, i)
 	}
 	sig.Normalize()
 	return sig
 }
 
-func SawtoothSynthesis(h int, ph float64) Discrete {
-	sig := make(Discrete, defaultDiscreteLen)
-	for i := 0.0; i < defaultDiscreteLen; i++ {
-		t := i / defaultDiscreteLen
-		for n := 1.0; n <= float64(h); n++ {
-			sig[int(i)] += (1 / n) * math.Sin(n*(twopi*t)+ph)
-		}
-	}
-	sig.Normalize()
-	return sig
-}
-
-func PulseSynthesis(h int, ph float64) Discrete {
-	sig := make(Discrete, defaultDiscreteLen)
-	for i := 0.0; i < defaultDiscreteLen; i++ {
-		t := i / defaultDiscreteLen
-		for n := 1.0; n <= float64(h); n++ {
-			sig[int(i)] += math.Sin(n*(twopi*t) + ph)
-		}
+// SawtoothSynth adds all harmonic partials up to n creating a sinusoidal wave.
+func SawtoothSynthesis(n int) Discrete {
+	fnd := Sine()
+	sig := Sine()
+	for i := 2; i <= n; i++ {
+		sig.Add(fnd, i)
 	}
 	sig.Normalize()
 	return sig

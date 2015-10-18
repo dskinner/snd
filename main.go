@@ -33,13 +33,10 @@ var (
 	ms = time.Millisecond
 
 	sawtooth = snd.Sawtooth()
-	// sawtooth  = snd.SawtoothSynthesis(50, 0)
-	square = snd.Square()
-	// square    = snd.SquareSynthesis(512)
-	pulse = snd.PulseSynthesis(4, 0)
-	sine  = snd.Sine()
+	square   = snd.Square()
+	sine     = snd.Sine()
 
-	harm  = snd.SquareSynthesis(4, 0)
+	harm  = snd.SquareSynthesis(4)
 	notes = snd.EqualTempermant(12, 440, 48)
 
 	keys [12]*Key
@@ -208,16 +205,13 @@ func onStart(ctx gl.Context) {
 	// 520, 695
 	// someosc = snd.NewOscil(harm, 695, nil)
 
-	foo := snd.Sine()
-	for i := 0; i < 4; i++ {
-		foo.Add(snd.Sine(), 0)
-	}
-	mtrosc := snd.NewOscil(foo, 220, nil)
-	// mtrdmp := snd.NewDamp(snd.BPM(80).Dur(), mtrosc)
-	// mtrdmp1 := snd.NewDamp(snd.BPM(100).Dur(), mtrosc)
-	// mtrdrv := snd.NewDrive(snd.BPM(100).Dur(), mtrosc)
-	// mtrmix := snd.NewMixer(mtrdmp, mtrdmp1, mtrdrv)
-	master.Append(mtrosc)
+	sq := snd.SquareSynthesis(4)
+	mtrosc := snd.NewOscil(sq, 220, nil)
+	mtrdmp := snd.NewDamp(snd.BPM(80).Dur(), mtrosc)
+	mtrdmp1 := snd.NewDamp(snd.BPM(100).Dur(), mtrosc)
+	mtrdrv := snd.NewDrive(snd.BPM(100).Dur(), mtrosc)
+	mtrmix := snd.NewMixer(mtrdmp, mtrdmp1, mtrdrv)
+	master.Append(mtrmix)
 
 	//
 	al.AddSource(pan)
