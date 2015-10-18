@@ -27,10 +27,11 @@ func (sig *Discrete) Sample(fn ContinuousFunc) {
 }
 
 func (sig *Discrete) Normalize() {
-	max := -1.0
+	var max float64
 	for _, x := range *sig {
-		if max < x {
-			max = x
+		a := math.Abs(x)
+		if max < a {
+			max = a
 		}
 	}
 	for i, x := range *sig {
@@ -40,17 +41,17 @@ func (sig *Discrete) Normalize() {
 }
 
 // Add performs additive synthesis.
-func (sig *Discrete) Add(a Discrete, ph float64) {
+func (sig *Discrete) Add(a Discrete, ptt int) {
 	if len(*sig) != len(a) {
 		panic("lengths do not match")
 	}
 	// https://en.wikipedia.org/wiki/Additive_synthesis
-	for i, x := range *sig {
-		if i == 0 {
-			continue
-		}
-		(*sig)[i] = x * math.Cos(a[i]+ph)
+	// http://music.columbia.edu/cmc/MusicAndComputers/chapter4/04_02.php
+	for i := range *sig {
+		j := i * ptt % (len(a) - 1)
+		(*sig)[i] += a[j] * (1 / float64(ptt))
 	}
+	sig.Normalize()
 }
 
 // SynthesisFunc produces a discrete signal constructed using additive synthesis.

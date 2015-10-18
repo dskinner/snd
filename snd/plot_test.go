@@ -39,11 +39,15 @@ func (plt *plttr) add(name string, sd Sound) {
 		out = append(out, sd.Samples()...)
 	}
 
+	plt.addDiscrete(name, Discrete(out))
+}
+
+func (plt *plttr) addDiscrete(name string, sig Discrete) {
 	// TODO there appears to be a bug in gonum plot where certain
 	// dashed lines for a particular result will not render correctly.
 	// Raw calls of plotutil are just tossed in here for now and avoids
 	// dashed lines.
-	l, err := plotter.NewLine(xyer(out))
+	l, err := plotter.NewLine(xyer([]float64(sig)))
 	if err != nil {
 		panic(err)
 	}
@@ -77,28 +81,43 @@ func xyer(out []float64) plotter.XYs {
 
 func TestPlotOscil(t *testing.T) {
 	plt := newplttr(4)
-	plt.add("Sine", NewOscil(Sine(), 440, nil))
+	// plt.add("Sine", NewOscil(Sine(), 440, nil))
 	// plt.add("Triangle", NewOscil(Triangle(), 440, nil))
 	// plt.add("Square", NewOscil(Square(), 440, nil))
-	plt.add("Sawtooth", NewOscil(Sawtooth(), 440, nil))
+	// plt.add("Sawtooth", NewOscil(SawtoothSynthesis(2, 0), 440, nil))
 	// plt.add("Pulse", NewOscil(PulseSynthesis(64, 0), 440, nil))
 
+	// sig := Sine()
+	// for i := 2; i <= 2; i++ {
+	// sig.Add(Sawtooth(), i, 0)
+	// }
+	// plt.add("Add()", NewOscil(sig, 440, nil))
+
+	plt.addDiscrete("Sine", Sine())
+
+	// plt.addDiscrete("Square Synth", SquareSynthesis(99, 0))
+	// sig := Sine()
+	// add odd partials to produce square via additive synthesis
+	// for i := 3; i <= 99; i += 2 {
+	// sig.Add(Sine(), i)
+	// }
+	// plt.addDiscrete("Square Add", sig)
+
+	plt.addDiscrete("Sawtooth Synth", SawtoothSynthesis(64, 0))
 	sig := Sine()
-	for i := 0; i < 4; i++ {
-		sig.Add(Triangle(), 0)
+	for i := 2; i <= 64; i++ {
+		sig.Add(Sine(), i)
 	}
-	plt.add("Add()", NewOscil(sig, 440, nil))
+	plt.addDiscrete("Sawtooth Add", sig)
 
-	osc0 := NewOscil(Sine(), 220, nil)
-	osc0.Prepare(1)
-	sig0 := Discrete(osc0.Samples())
-	osc1 := NewOscil(Sine(), 440, nil)
-	osc1.Prepare(1)
-	sig1 := Discrete(osc1.Samples())
-
-	sig0.Add(sig1, 0)
-
-	plt.add("xtra", NewOscil(sig0, 660, nil))
+	// osc0 := NewOscil(Sine(), 220, nil)
+	// osc0.Prepare(1)
+	// sig0 := Discrete(osc0.Samples())
+	// osc1 := NewOscil(Sine(), 440, nil)
+	// osc1.Prepare(1)
+	// sig1 := Discrete(osc1.Samples())
+	// sig0.Add(sig1, 0)
+	// plt.add("xtra", NewOscil(sig0, 660, nil))
 
 	if err := plt.save("oscil.png"); err != nil {
 		t.Fatal(err)
