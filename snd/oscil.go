@@ -16,7 +16,7 @@ type Oscil struct {
 	// TODO how much of this can I just make exported?
 	// yes, freq and harm might not be thread safe exactly
 	// but what's the worse that could happen if it was swapped out?
-	h   Harm
+	h   Discrete
 	idx float64
 
 	freq    float64
@@ -29,7 +29,7 @@ type Oscil struct {
 	phasemod Sound
 }
 
-func NewOscil(h Harm, freq float64, freqmod Sound) *Oscil {
+func NewOscil(h Discrete, freq float64, freqmod Sound) *Oscil {
 	return &Oscil{
 		mono:    newmono(nil),
 		h:       h,

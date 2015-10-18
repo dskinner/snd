@@ -22,7 +22,7 @@ import (
 // TODO piano
 // http://www.soundonsound.com/sos/nov02/articles/synthsecrets1102.asp
 
-const buffers = 2
+const buffers = 1
 
 var (
 	sz size.Event
@@ -32,12 +32,14 @@ var (
 
 	ms = time.Millisecond
 
-	sawtooth = snd.Sawtooth(512)
-	square   = snd.Square(512)
-	pulse    = snd.Pulse(4)
-	sine     = snd.Sine()
+	sawtooth = snd.Sawtooth()
+	// sawtooth  = snd.SawtoothSynthesis(50, 0)
+	square = snd.Square()
+	// square    = snd.SquareSynthesis(512)
+	pulse = snd.PulseSynthesis(4, 0)
+	sine  = snd.Sine()
 
-	harm  = snd.Square(4)
+	harm  = snd.SquareSynthesis(4, 0)
 	notes = snd.EqualTempermant(12, 440, 48)
 
 	keys [12]*Key
@@ -94,12 +96,11 @@ func NewKey(idx int) *Key {
 	osc2 := snd.NewOscil(sawtooth, freq2, nil)
 	osc2.SetPhase(1, snd.NewOscil(square, freq2*phasefac, nil))
 	oscmix := snd.NewMixer(osc0, osc1, osc2)
-	// oscgain := snd.NewGain(snd.Decibel(-5).Amp(), oscmix)
 
 	adsr0 := snd.NewADSR(30*ms, 50*ms, 200*ms, release, 0.4, 1, oscmix)
 	adsr1 := snd.NewADSR(0*ms, 280*ms, 0*ms, release, 0.4, 1, oscmix)
 	adsrmix := snd.NewMixer(adsr0, adsr1)
-	adsrgain := snd.NewGain(snd.Decibel(-8).Amp(), adsrmix)
+	adsrgain := snd.NewGain(snd.Decibel(-10).Amp(), adsrmix)
 	nst := snd.NewInstrument(adsrgain)
 	nst.Off()
 
@@ -160,11 +161,11 @@ func onStart(ctx gl.Context) {
 	tap2 := snd.NewTap(7*time.Millisecond, dly)
 	cmb := snd.NewComb(snd.Decibel(-3).Amp(), 11*time.Millisecond, snd.NewMixer(dly, tap0, tap1, tap2))
 	dlymix := snd.NewMixer(cmb, keylp)
-	loop = snd.NewLoop(5*time.Second, dlymix)
-	loopmix := snd.NewMixer(dlymix, loop)
+	// loop = snd.NewLoop(5*time.Second, dlymix)
+	// loopmix := snd.NewMixer(dlymix, loop)
 
 	// lp := snd.NewLowPass(800, loopmix)
-	master := snd.NewMixer(loopmix)
+	master := snd.NewMixer(dlymix)
 	mixwf, err = snd.NewWaveform(ctx, 4, master)
 	if err != nil {
 		log.Fatal(err)
@@ -202,17 +203,21 @@ func onStart(ctx gl.Context) {
 	// pianowf.Align(-0.999)
 
 	// experimental bits
-	somemod = snd.NewOscil(harm, 2, nil)
+	// somemod = snd.NewOscil(harm, 2, nil)
 	// interesting frequencies with first key
 	// 520, 695
-	someosc = snd.NewOscil(harm, 695, nil)
+	// someosc = snd.NewOscil(harm, 695, nil)
 
-	// mtrosc := snd.NewOscil(harm, 220, nil)
+	foo := snd.Sine()
+	for i := 0; i < 4; i++ {
+		foo.Add(snd.Sine(), 0)
+	}
+	mtrosc := snd.NewOscil(foo, 220, nil)
 	// mtrdmp := snd.NewDamp(snd.BPM(80).Dur(), mtrosc)
 	// mtrdmp1 := snd.NewDamp(snd.BPM(100).Dur(), mtrosc)
 	// mtrdrv := snd.NewDrive(snd.BPM(100).Dur(), mtrosc)
 	// mtrmix := snd.NewMixer(mtrdmp, mtrdmp1, mtrdrv)
-	// master.Append(mtrmix)
+	master.Append(mtrosc)
 
 	//
 	al.AddSource(pan)

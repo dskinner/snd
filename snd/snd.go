@@ -60,9 +60,9 @@ round, as is standard in Java ("big endian" byte order).
 // TODO most everything in this package is not correctly handling/respecting Enabled()
 
 const (
-	DefaultSampleRate     float64 = 44100
-	DefaultSampleBitDepth int     = 16 // TODO not currently used for anything
-	DefaultBufferLen      int     = 256
+	DefaultSampleRate     float64 = 44100               // 22050
+	DefaultSampleBitDepth int     = 16                  // TODO not currently used for anything
+	DefaultBufferLen      int     = 256                 // 128
 	DefaultAmpMult        float64 = 0.31622776601683794 // -10dB
 )
 

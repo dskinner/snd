@@ -26,7 +26,7 @@ func newplttr(nproc int) *plttr {
 	}
 	plt := &plttr{Plot: p, nproc: nproc}
 	plt.X.Min, plt.X.Max = 0, 1
-	plt.Y.Min, plt.Y.Max = -1, 1
+	plt.Y.Min, plt.Y.Max = -1.5, 1.5
 	return plt
 }
 
@@ -39,6 +39,10 @@ func (plt *plttr) add(name string, sd Sound) {
 		out = append(out, sd.Samples()...)
 	}
 
+	// TODO there appears to be a bug in gonum plot where certain
+	// dashed lines for a particular result will not render correctly.
+	// Raw calls of plotutil are just tossed in here for now and avoids
+	// dashed lines.
 	l, err := plotter.NewLine(xyer(out))
 	if err != nil {
 		panic(err)
@@ -74,9 +78,28 @@ func xyer(out []float64) plotter.XYs {
 func TestPlotOscil(t *testing.T) {
 	plt := newplttr(4)
 	plt.add("Sine", NewOscil(Sine(), 440, nil))
-	plt.add("Square", NewOscil(Square(256), 440, nil))
-	plt.add("Sawtooth", NewOscil(Sawtooth(256), 440, nil))
-	plt.add("Pulse", NewOscil(Pulse(64), 440, nil))
+	// plt.add("Triangle", NewOscil(Triangle(), 440, nil))
+	// plt.add("Square", NewOscil(Square(), 440, nil))
+	plt.add("Sawtooth", NewOscil(Sawtooth(), 440, nil))
+	// plt.add("Pulse", NewOscil(PulseSynthesis(64, 0), 440, nil))
+
+	sig := Sine()
+	for i := 0; i < 4; i++ {
+		sig.Add(Triangle(), 0)
+	}
+	plt.add("Add()", NewOscil(sig, 440, nil))
+
+	osc0 := NewOscil(Sine(), 220, nil)
+	osc0.Prepare(1)
+	sig0 := Discrete(osc0.Samples())
+	osc1 := NewOscil(Sine(), 440, nil)
+	osc1.Prepare(1)
+	sig1 := Discrete(osc1.Samples())
+
+	sig0.Add(sig1, 0)
+
+	plt.add("xtra", NewOscil(sig0, 660, nil))
+
 	if err := plt.save("oscil.png"); err != nil {
 		t.Fatal(err)
 	}
@@ -84,8 +107,8 @@ func TestPlotOscil(t *testing.T) {
 
 func TestPlotPhaser(t *testing.T) {
 	plt := newplttr(8)
-	sawtooth := Sawtooth(4)
-	square := Square(4)
+	sawtooth := SawtoothSynthesis(4, 0)
+	square := SquareSynthesis(4, 0)
 
 	osc0 := NewOscil(sawtooth, 440, nil)
 	plt.add("oscil", osc0)
