@@ -38,7 +38,7 @@ func TestDtof(t *testing.T) {
 	sr := 44100.0
 	eps := time.Duration(1 / sr * float64(time.Second)) // 1Hz as time.Duration
 	d := 75 * time.Millisecond
-	x := ftod(dtof(d, sr), sr)
+	x := Ftod(Dtof(d, sr), sr)
 	if diff := d - x; diff > eps {
 		t.Fatalf("%s greater than epsilon %s", diff, eps)
 	}

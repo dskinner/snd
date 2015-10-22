@@ -5,10 +5,6 @@ import "math"
 // LowPass is a 3rd order IIR filter.
 //
 // Recursive implementation of the Gaussian filter.
-//
-// Very informative
-// https://courses.cs.washington.edu/courses/cse466/13au/pdfs/lectures/Intro%20to%20DSP.pdf
-// TODO proper ref to paper
 type LowPass struct {
 	*mono
 
@@ -18,7 +14,13 @@ type LowPass struct {
 	b0, b1, b2, b3 float64
 	// delays
 	d1, d2, d3 float64
+
+	// TODO eek, temporary
+	passthrough bool
 }
+
+func (lp *LowPass) SetPassthrough(b bool) { lp.passthrough = b }
+func (lp *LowPass) Passthrough() bool     { return lp.passthrough }
 
 func NewLowPass(freq float64, in Sound) *LowPass {
 	q := 5.0
@@ -51,6 +53,8 @@ func (lp *LowPass) Prepare(uint64) {
 	for i, x := range lp.in.Samples() {
 		if lp.off {
 			lp.out[i] = 0
+		} else if lp.passthrough {
+			lp.out[i] = x
 		} else {
 			lp.out[i] = lp.b*x + lp.b1*lp.d1 + lp.b2*lp.d2 + lp.b3*lp.d3
 		}

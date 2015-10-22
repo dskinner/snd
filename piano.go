@@ -1,6 +1,8 @@
 package main
 
 import (
+	"math"
+
 	"dasa.cc/piano/snd"
 	"golang.org/x/mobile/event/size"
 	"golang.org/x/mobile/event/touch"
@@ -31,7 +33,6 @@ type Piano struct {
 func NewPiano() *Piano {
 	wf := &Piano{}
 	wf.Sound = snd.Mono(nil)
-	// wf.Sound.SetAmp(1, nil)
 	wf.Sound.SetBufferLen(1024)
 
 	wf.keys = make([]float64, wf.Sound.BufferLen())
@@ -44,13 +45,12 @@ func NewPiano() *Piano {
 	// dinky piano signal
 	for i := 0; i < len(wf.keys); i += 2 {
 		if i <= space {
-			// marker for signal alignment
-			wf.keys[i] = -0.999
-			wf.keys[i+1] = -0.999
+			wf.keys[i] = -1
+			wf.keys[i+1] = -1
 			continue
 		} else if i >= (len(wf.keys) - space) {
-			wf.keys[i] = -0.98
-			wf.keys[i+1] = -0.98
+			wf.keys[i] = -1
+			wf.keys[i+1] = -1
 			continue
 		}
 
@@ -100,10 +100,42 @@ func (wf *Piano) KeyAt(ev touch.Event, sz size.Event) int {
 	}
 }
 
-func (wf *Piano) Prepare(uint64) {
+func (wf *Piano) Prepare(tc uint64) {
 	out := wf.Sound.Samples()
 	for i := range out {
-		out[i] = wf.keys[wf.idx] // wf.Sound.Amp(i) * wf.keys[wf.idx]
-		wf.idx = (wf.idx + 1) % len(wf.keys)
+		out[i] = wf.keys[wf.idx]
+		y := out[i]
+
+		idx := 0
+		nkeys := len(hasmn)
+		mj := len(wf.keys) / nkeys
+		key := i / mj
+		if key < 0 {
+			key = 0
+		}
+		if key > nkeys-1 {
+			key = nkeys - 1
+		}
+		j := i % mj
+		if j <= (mj/4) && hasmn[key].left && y > -0.3 {
+			idx = hasmn[key].pos - 1
+		} else if j >= mj-(mj/4) && hasmn[key].right && y > -0.3 {
+			idx = hasmn[key].pos + 1
+		} else {
+			idx = hasmn[key].pos
+		}
+
+		if keys[idx] != nil && !keys[idx].IsOff() {
+			z := math.Abs(keys[idx].Sample(i))
+			if y <= -0.3 {
+				z *= 0.3
+			}
+			if (i % 4) == 0 {
+				out[i] -= z
+			} else {
+				out[i] -= z / 4
+			}
+		}
+		wf.idx = (wf.idx + 1) & (len(wf.keys) - 1)
 	}
 }

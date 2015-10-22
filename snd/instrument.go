@@ -12,7 +12,7 @@ func NewInstrument(in Sound) *Instrument {
 }
 
 func (nst *Instrument) OffIn(d time.Duration) {
-	nst.tm = dtof(d, nst.SampleRate())
+	nst.tm = Dtof(d, nst.SampleRate())
 }
 
 func (nst *Instrument) On() {

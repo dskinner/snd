@@ -11,6 +11,10 @@ import (
 	"golang.org/x/mobile/exp/audio/al"
 )
 
+// TODO much of this functionality needs to be generalized
+// but that can wait to be hashed out until other backends
+// are supported, e.g. jack
+
 const maxbufs = 80 // arbitrary soft limit
 
 var hwa *openal
@@ -170,10 +174,14 @@ func Tick() {
 	for _, buf := range bufs {
 		hwa.tc++
 
-		// TODO
+		// TODO the general idea here is that GetInputs is rather cheap to call, even with the
+		// current first-draft implementation, so it could only return inputs that are actually
+		// turned on. This would introduce software latency determined by snd.DefaultBufferLen
+		// as turning an input back on would not get picked up until the next iteration.
 		// if !realtime {
 		// hwa.inputs = snd.GetInputs(hwa.in)
 		// }
+
 		dp.Dispatch(hwa.tc, hwa.inputs...)
 
 		for i, x := range hwa.in.Samples() {

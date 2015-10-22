@@ -10,6 +10,7 @@ type Mixer struct {
 
 func NewMixer(ins ...Sound) *Mixer   { return &Mixer{newmono(nil), ins} }
 func (mix *Mixer) Append(s ...Sound) { mix.ins = append(mix.ins, s...) }
+func (mix *Mixer) Empty()            { mix.ins = nil }
 func (mix *Mixer) Inputs() []Sound   { return mix.ins }
 
 func (mix *Mixer) Prepare(uint64) {

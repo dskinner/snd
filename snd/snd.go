@@ -10,10 +10,16 @@
 // TODO many sounds don't respect off, double check everything
 // TODO many sounds only support mono
 // TODO support upsampling and downsampling
+// TODO migrate most things to Discrete (e.g. mono.out)
 // TODO many Prepare funcs need to check if their inputs have altered state (turned on/off, etc)
 // during sampling, not just before or after, otherwise this introduces a delay. For example,
 // the current defaults of 256 frame length buffer at 44.1kHz would result in a 5.8ms delay.
 // Solution needs to account for the updated method for dispatching prepares.
+// TODO look into a type Sampler interface { Sample(int) float64 }
+//
+// TODO implement sheperd tone for fun
+// https://en.wikipedia.org/wiki/Shepard_tone
+// http://music.columbia.edu/cmc/MusicAndComputers/chapter4/04_02.php
 package snd // import "dasa.cc/piano/snd"
 import (
 	"fmt"
@@ -21,49 +27,11 @@ import (
 	"time"
 )
 
-// TODO
-// https://en.wikipedia.org/wiki/Piano_key_frequencies
-// https://en.wikipedia.org/wiki/Fundamental_frequency
-// https://en.wikipedia.org/wiki/Harmonic_series_(mathematics)
-// https://en.wikipedia.org/wiki/Sine_wave
-// https://en.wikipedia.org/wiki/Triangle_wave
-// https://en.wikipedia.org/wiki/Additive_synthesis
-// https://en.wikipedia.org/wiki/Wave
-// https://en.wikipedia.org/wiki/Waveform
-// https://en.wikipedia.org/wiki/Wavelength
-// https://en.wikipedia.org/wiki/Sampling_(signal_processing)
-// http://public.wsu.edu/~jkrug/MUS364/audio/Waveforms.htm
-// https://en.wikipedia.org/wiki/Window_function#Hamming_window
-// http://uenics.evansville.edu/~amr63/equipment/scope/oscilloscope.html
-//
-// http://www.csounds.com/manual/html/
-
-/* http://dollopofdesi.blogspot.com/2011/09/interleaving-audio-files-to-different.html
-
-Each second of sound has so many (on a CD, 44,100) digital samples of sound pressure per second.
-The number of samples per second is called sample rate or sample frequency.
-In PCM (pulse code modulation) coding, each sample is usually a linear representation of amplitude
-as a signed integer (sometimes unsigned for 8 bit).
-
-There is one such sample for each channel, one channel for mono, two channels for stereo,
-four channels for quad, more for surround sound. One sample frame consists of one sample
-for each of the channels in turn, by convention running from left to right.
-
-Each sample can be one byte (8 bits), two bytes (16 bits), three bytes (24 bits), or maybe
-even 20 bits or a floating-point number. Sometimes, for more than 16 bits per sample,
-the sample is padded to 32 bits (4 bytes) The order of the bytes in a sample is different
-on different platforms. In a Windows WAV soundfile, the less significant bytes come first
-from left to right ("little endian" byte order). In an AIFF soundfile, it is the other way
-round, as is standard in Java ("big endian" byte order).
-*/
-
-// TODO most everything in this package is not correctly handling/respecting Enabled()
-
 const (
-	DefaultSampleRate     float64 = 44100               // 22050
-	DefaultSampleBitDepth int     = 16                  // TODO not currently used for anything
-	DefaultBufferLen      int     = 256                 // 128
-	DefaultAmpMult        float64 = 0.31622776601683794 // -10dB
+	DefaultSampleRate     float64 = 44100
+	DefaultSampleBitDepth int     = 16 // TODO not currently used for anything
+	DefaultBufferLen      int     = 256
+	DefaultAmpFac         float64 = 0.31622776601683794 // -10dB
 )
 
 const epsilon = 0.0001
@@ -108,43 +76,55 @@ func (bpm BPM) Dur() time.Duration {
 	return time.Duration(float64(time.Minute) / float64(bpm))
 }
 
+func (bpm BPM) Hertz() float64 {
+	return float64(bpm) / 2
+}
+
 type Sound interface {
+	// SampleRate returns the number of digital samples of sound pressure per second.
 	SampleRate() float64
+
+	// Channels returns the frame size in samples of the internal buffer.
 	Channels() int
 
 	// BufferLen returns size of internal buffer in samples.
 	BufferLen() int
-	SetBufferLen(int)
 
-	// Prepare is when a sound should prepare sample frames. returns true if ok to continue.
-	// TODO actually probably possible to completely avoid all the ok = ...; !ok by just making
-	// this a different method that no one is overriding ...
-	// that also avoids all the times code ignores the ok
-	// basically, just have said new method be proxy that calls Prepare(uint64) or maybe just go back
-	// to method Do(uint64) and have Prepare be proxy.
-	// would be nice to have that be where dependent prepares are called, like Osc has so many
-	// after prepares are done, i suppose all output is actually parallelizable at that point ... hmmm, is it?
+	// SetBufferLen resizes the internal buffer to n samples.
+	SetBufferLen(n int)
+
+	// Prepare is when a sound should prepare sample frames.
+	//
+	// TODO consider prepare as proxy of some new method, such as Do(), to prevent
+	// unecessary prepares over the same uint64. But, this could also be managed
+	// by the new dispatcher.
 	Prepare(uint64)
 
+	// Samples returns prepared samples slice.
+	//
 	// TODO maybe ditch this, point of architecture is you can't mess
 	// with an input's output but a slice exposes that. Or, discourage
 	// use by making a copy of data.
-	// Samples returns prepared samples slice.
 	Samples() []float64
 
 	// Sample returns the sample at pos mod BufferLen().
 	Sample(pos int) float64
 
+	// On allows calls to Prepare to fill the internal buffer with valid data.
 	On()
+
+	// Off makes calls to Prepare write out zeros to the internal buffer.
 	Off()
+
+	// TODO meh ...
 	IsOff() bool
 
 	// Inputs should return all inputs a Sound wants discoverable (for dispatcher).
 	Inputs() []Sound
 }
 
-func Mono(in Sound) Sound { return newmono(in) }
-
+// TODO these are ill-conceived
+func Mono(in Sound) Sound   { return newmono(in) }
 func Stereo(in Sound) Sound { return newstereo(in) }
 
 // TODO this is just an example of something I may or may not want

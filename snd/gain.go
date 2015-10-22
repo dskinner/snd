@@ -5,8 +5,12 @@ type Gain struct {
 	a float64
 }
 
-func NewGain(a float64, in Sound) Sound {
+func NewGain(a float64, in Sound) *Gain {
 	return &Gain{newmono(in), a}
+}
+
+func (gn *Gain) SetAmp(a float64) {
+	gn.a = a
 }
 
 func (gn *Gain) Prepare(uint64) {

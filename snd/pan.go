@@ -48,7 +48,7 @@ func (pan *Pan) Prepare(uint64) {
 		if pan.r.off {
 			pan.r.out[i] = 0
 		} else {
-			pan.r.out[i] = x * getpanfac(pan.xf)
+			pan.r.out[i] = x * getpanfac(-pan.xf)
 		}
 		pan.out[i*2] = pan.l.out[i]
 		pan.out[i*2+1] = pan.r.out[i]

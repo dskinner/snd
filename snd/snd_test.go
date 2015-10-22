@@ -10,19 +10,42 @@ type unit struct{ *mono }
 func newunit() *unit {
 	u := &unit{newmono(nil)}
 	for i := range u.out {
-		u.out[i] = DefaultAmpMult
+		u.out[i] = DefaultAmpFac
 	}
 	return u
 }
 
 func (u *unit) Prepare(uint64) {}
 
+type zeros struct{ *mono }
+
+func newzeros() *zeros { return &zeros{newmono(nil)} }
+
+func (z *zeros) Prepare(uint64) {
+	for i := range z.out {
+		if z.off {
+			z.out[i] = 0
+		} else {
+			z.out[i] = 1
+		}
+	}
+}
+
+func BenchmarkZeros(b *testing.B) {
+	z := newzeros()
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 1; n <= b.N; n++ {
+		z.Prepare(uint64(n))
+	}
+}
+
 // mksound returns a 12-key piano synth as might be found in an app.
 func mksound() Sound {
 	mix := NewMixer()
 	for i := 0; i < 12; i++ {
 		oscil := NewOscil(Sawtooth(), 440, NewOscil(Sine(), 2, nil))
-		oscil.SetPhase(1, NewOscil(Square(), 200, nil))
+		oscil.SetPhase(NewOscil(Square(), 200, nil))
 
 		comb := NewComb(0.8, 10*time.Millisecond, oscil)
 		adsr := NewADSR(50*time.Millisecond, 500*time.Millisecond, 100*time.Millisecond, 350*time.Millisecond, 0.4, 1, comb)

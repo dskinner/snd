@@ -53,7 +53,6 @@ func (plt *plttr) addDiscrete(name string, sig Discrete) {
 	}
 	l.Color = plotutil.Color(plt.nlines)
 	// l.Dashes = plotutil.Dashes(plt.nlines)
-	// l.LineStyle.Width = 2
 
 	plt.Add(l)
 	plt.Legend.Add(name, l)
@@ -80,12 +79,26 @@ func xyer(out []float64) plotter.XYs {
 }
 
 func TestPlotOscil(t *testing.T) {
-	plt := newplttr(4)
+	plt := newplttr(1)
+	freq := 440.0
+	pth := 3
+	td := []struct {
+		name string
+		fn   func() Discrete
+	}{
+		// {"Sine", Sine},
+		// {"Square", Square},
+		// {"Triangle", Triangle},
+		// {"Sawtooth", Sawtooth},
+		{"Square Sinusoidal", func() Discrete { return SquareSynthesis(pth) }},
+		// {"Sawtooth Sinusoidal", func() Discrete { return SawtoothSynthesis(pth) }},
+	}
 
-	sig1 := SquareSynthesis(999)
-	osc1 := NewOscil(sig1, 440, nil)
-	osc1.SetAmp(1, nil)
-	plt.add("Sig 1", osc1)
+	for _, d := range td {
+		osc := NewOscil(d.fn(), freq, nil)
+		osc.SetAmp(1, nil)
+		plt.add(d.name, osc)
+	}
 
 	if err := plt.save("oscil.png"); err != nil {
 		t.Fatal(err)
@@ -93,15 +106,17 @@ func TestPlotOscil(t *testing.T) {
 }
 
 func TestPlotPhaser(t *testing.T) {
-	plt := newplttr(8)
-	sawtooth := SawtoothSynthesis(4)
-	square := SquareSynthesis(4)
+	plt := newplttr(4)
+	sawtooth := Sawtooth()
+	square := Square()
 
 	osc0 := NewOscil(sawtooth, 440, nil)
+	osc0.SetAmp(1, nil)
 	plt.add("oscil", osc0)
 
 	osc1 := NewOscil(sawtooth, 440, nil)
-	osc1.SetPhase(1, NewOscil(square, 440*0.8, nil))
+	osc1.SetPhase(NewOscil(square, 440*0.4275, nil))
+	osc1.SetAmp(1, nil)
 	plt.add("phased", osc1)
 
 	if err := plt.save("phaser.png"); err != nil {
@@ -112,9 +127,7 @@ func TestPlotPhaser(t *testing.T) {
 func TestPlotADSR(t *testing.T) {
 	plt := newplttr(256)
 	ms := time.Millisecond
-	// adsr := NewADSR(50*ms, 100*ms, 150*ms, 200*ms, 0.3, 0.6, nil)
-	adsr := NewADSR(10*ms, 5*ms, 400*ms, 350*ms, 0.4, 1, nil)
-	plt.add("adsr", adsr)
+	plt.add("adsr", NewADSR(10*ms, 5*ms, 400*ms, 350*ms, 0.4, 1, nil))
 	if err := plt.save("adsr.png"); err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +154,7 @@ func TestPlotDelay(t *testing.T) {
 	osc0 := NewOscil(Sine(), 440, nil)
 	plt.add("Sine 440Hz", osc0)
 
-	dly := NewDelay(ftod(DefaultBufferLen, DefaultSampleRate), NewOscil(Sine(), 440, nil))
+	dly := NewDelay(Ftod(DefaultBufferLen, DefaultSampleRate), NewOscil(Sine(), 440, nil))
 	plt.add("Delay", dly)
 
 	if err := plt.save("delay.png"); err != nil {
@@ -155,7 +168,7 @@ func TestPlotDamp(t *testing.T) {
 	osc0 := NewOscil(Sine(), 440, nil)
 	plt.add("440Hz", osc0)
 
-	d := ftod(DefaultBufferLen*4, DefaultSampleRate)
+	d := Ftod(DefaultBufferLen*4, DefaultSampleRate)
 
 	osc1 := NewOscil(Sine(), 440, nil)
 	dmp := NewDamp(d, osc1)
@@ -174,7 +187,7 @@ func TestPlotDrive(t *testing.T) {
 	osc0 := NewOscil(Sine(), 440, nil)
 	plt.add("440Hz", osc0)
 
-	d := ftod(DefaultBufferLen*4, DefaultSampleRate)
+	d := Ftod(DefaultBufferLen*4, DefaultSampleRate)
 
 	osc1 := NewOscil(Sine(), 440, nil)
 	drv := NewDrive(d, osc1)
@@ -183,6 +196,42 @@ func TestPlotDrive(t *testing.T) {
 	plt.add("Force", NewDrive(d, newunit()))
 
 	if err := plt.save("drive.png"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPlotNorm(t *testing.T) {
+	plt := newplttr(8)
+
+	sq0 := Sine()
+	for i := 3; i <= 99; i += 2 {
+		sq0.Add(fundamental, i)
+	}
+	sq1 := make(Discrete, len(sq0))
+	copy(sq1, sq0)
+	sq0.Normalize()
+	sq1.NormalizeRange(-1, 1)
+	plt.addDiscrete("Normalize", sq0)
+	plt.addDiscrete("NormalizeRange", sq1)
+
+	if err := plt.save("norm.png"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPlotFreeze(t *testing.T) {
+	plt := newplttr(8)
+
+	osc0 := NewOscil(Sine(), 440, NewOscil(Sawtooth(), 23, nil))
+	osc0.SetPhase(NewOscil(Square(), 231, nil))
+	plt.add("Oscil", osc0)
+
+	osc1 := NewOscil(Sine(), 440, NewOscil(Sawtooth(), 23, nil))
+	osc1.SetPhase(NewOscil(Square(), 231, nil))
+	frz := NewFreeze(50*time.Millisecond, osc1)
+	plt.add("Freeze", frz)
+
+	if err := plt.save("freeze.png"); err != nil {
 		t.Fatal(err)
 	}
 }
