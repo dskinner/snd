@@ -170,8 +170,18 @@ func (sd *mono) SetBufferLen(n int) {
 	sd.out = make([]float64, n)
 }
 func (sd *mono) IsOff() bool { return sd.off }
-func (sd *mono) Off()        { sd.off = true }
-func (sd *mono) On()         { sd.off = false }
+func (sd *mono) Off() {
+	sd.off = true
+	// if sd.in != nil {
+	// sd.in.Off()
+	// }
+}
+func (sd *mono) On() {
+	sd.off = false
+	// if sd.in != nil {
+	// sd.in.On()
+	// }
+}
 
 func (sd *mono) Inputs() []Sound { return []Sound{sd.in} }
 

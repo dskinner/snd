@@ -16,7 +16,7 @@ import (
 	"golang.org/x/mobile/gl"
 )
 
-const buffers = 2
+const buffers = 1
 
 // TODO this file got out of hand ..
 
@@ -93,7 +93,9 @@ func NewBeatsKey(idx int) Key {
 	drv := snd.NewDrive(d, osc)
 	mix := snd.NewMixer(dmp, dmp1, drv)
 
-	adsr := snd.NewADSR(250*ms, 500*ms, 300*ms, 400*ms, 0.85, 1.0, mix)
+	frz := snd.NewFreeze(bpm.Dur()*4, mix)
+
+	adsr := snd.NewADSR(250*ms, 500*ms, 300*ms, 400*ms, 0.85, 1.0, frz)
 	key := &BeatsKey{snd.NewInstrument(adsr), adsr}
 	key.Off()
 	return key
@@ -193,6 +195,7 @@ func NewPianoKey(idx int) Key {
 }
 
 func (key *PianoKey) Freeze() {
+	key.On()
 	key.frz = snd.NewFreeze(key.dur, key.gain)
 	key.Instrument = snd.NewInstrument(key.frz)
 	key.Off()
@@ -205,7 +208,7 @@ func (key *PianoKey) Press() {
 		key.adsr0.Restart()
 		key.adsr1.Restart()
 	} else {
-		key.frz.SetPos(0)
+		key.frz.Restart()
 	}
 }
 

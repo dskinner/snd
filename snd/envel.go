@@ -174,10 +174,33 @@ func (dmp *Damp) Prepare(uint64) {
 	}
 }
 
-type Drive struct{ *seq }
+type Drive struct {
+	*mono
+	sig  Discrete
+	i, n float64
+}
 
 func NewDrive(d time.Duration, in Sound) *Drive {
-	drv := &Drive{newseq(in)}
-	drv.tms = []*timed{newtimed(ExpDrive(), Dtof(d, drv.SampleRate()))}
-	return drv
+	sd := newmono(in)
+	return &Drive{
+		mono: sd,
+		sig:  ExpDrive(),
+		n:    float64(Dtof(d, sd.SampleRate())),
+	}
+}
+
+func (drv *Drive) Prepare(uint64) {
+	for i := range drv.out {
+		if drv.off {
+			drv.out[i] = 0
+		} else if drv.in == nil {
+			drv.out[i] = drv.sig.SampleUnit(drv.i / drv.n)
+		} else {
+			drv.out[i] = drv.in.Sample(i) * drv.sig.SampleUnit(drv.i/drv.n)
+		}
+		drv.i++
+		if drv.i == drv.n {
+			drv.i = 0
+		}
+	}
 }

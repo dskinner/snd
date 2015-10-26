@@ -23,3 +23,12 @@ func BenchmarkDamp(b *testing.B) {
 		env.Prepare(uint64(n))
 	}
 }
+
+func BenchmarkDrive(b *testing.B) {
+	env := NewDrive(50*time.Millisecond, newunit())
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		env.Prepare(uint64(n))
+	}
+}
