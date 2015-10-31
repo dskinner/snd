@@ -1,11 +1,9 @@
-```
-# desktop
-go run *.go
+# snd
 
-# android
-gomobile build -target android .
-adb install -r piano.apk
-```
+written for go challenge #7.
 
-to support intended use on android (landscape, fullscreen), build with go mobile from
-at least the following commit: 38a56c4998acb3d9e92277296a18e10302225654
+```
+# plots are saved to plots/ folder
+go get github.com/gonum/plot
+go test -tags plot
+```

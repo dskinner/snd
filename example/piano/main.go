@@ -5,8 +5,8 @@ import (
 	"math"
 	"time"
 
-	"dasa.cc/piano/snd"
-	"dasa.cc/piano/snd/al"
+	"dasa.cc/snd"
+	"dasa.cc/snd/al"
 
 	"golang.org/x/mobile/app"
 	"golang.org/x/mobile/event/lifecycle"

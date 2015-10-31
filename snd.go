@@ -16,11 +16,12 @@
 // the current defaults of 256 frame length buffer at 44.1kHz would result in a 5.8ms delay.
 // Solution needs to account for the updated method for dispatching prepares.
 // TODO look into a type Sampler interface { Sample(int) float64 }
+// TODO more documentation
 //
 // TODO implement sheperd tone for fun
 // https://en.wikipedia.org/wiki/Shepard_tone
 // http://music.columbia.edu/cmc/MusicAndComputers/chapter4/04_02.php
-package snd // import "dasa.cc/piano/snd"
+package snd // import "dasa.cc/snd"
 import (
 	"fmt"
 	"math"

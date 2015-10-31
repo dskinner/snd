@@ -3,7 +3,7 @@ package main
 import (
 	"math"
 
-	"dasa.cc/piano/snd"
+	"dasa.cc/snd"
 	"golang.org/x/mobile/event/size"
 	"golang.org/x/mobile/event/touch"
 )

@@ -6,7 +6,7 @@ import (
 	"math"
 	"time"
 
-	"dasa.cc/piano/snd"
+	"dasa.cc/snd"
 
 	"golang.org/x/mobile/exp/audio/al"
 )
