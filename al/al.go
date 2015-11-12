@@ -39,7 +39,7 @@ func (b *Buffer) Get() (bufs []al.Buffer) {
 	if proc := int(b.src.BuffersProcessed()); proc >= b.size {
 		// advance by size, BuffersProcessed will report that many less next time.
 		bufs = b.bufs[b.idx : b.idx+b.size]
-		b.src.UnqueueBuffers(bufs)
+		b.src.UnqueueBuffers(bufs...)
 		if code := al.Error(); code != 0 {
 			log.Printf("snd/al: unqueue buffers failed [err=%v]\n", code)
 		}
@@ -91,7 +91,7 @@ func OpenDevice(buflen int) error {
 }
 
 func CloseDevice() error {
-	al.DeleteBuffers(hwa.buf.bufs)
+	al.DeleteBuffers(hwa.buf.bufs...)
 	al.DeleteSources(hwa.source)
 	al.CloseDevice()
 	hwa = nil
@@ -203,7 +203,7 @@ func Tick() {
 	}
 
 	if len(bufs) != 0 {
-		hwa.source.QueueBuffers(bufs)
+		hwa.source.QueueBuffers(bufs...)
 	}
 	if code := al.Error(); code != 0 {
 		log.Printf("snd/al: queue buffer failed [err=%v]\n", code)
