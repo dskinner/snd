@@ -93,6 +93,20 @@ func (sig *Discrete) Reverse() {
 	}
 }
 
+// UnitInverse sets each sample to 1 - x.
+func (sig *Discrete) UnitInverse() {
+	for i, x := range *sig {
+		(*sig)[i] = 1 - x
+	}
+}
+
+// AdditiveInverse sets each sample to -x.
+func (sig *Discrete) AdditiveInverse() {
+	for i, x := range *sig {
+		(*sig)[i] = -x
+	}
+}
+
 // Add performs additive synthesis from the fundamental, a, for the partial harmonic, pth.
 func (sig *Discrete) Add(a Discrete, pth int) {
 	for i := range *sig {
