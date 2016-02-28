@@ -5,8 +5,6 @@
 	android:versionCode="1"
 	android:versionName="1.0">
 
-	<uses-sdk android:minSdkVersion="16" />
-
 	<application
 			android:label="Piano"
 			android:debuggable="true">
@@ -14,8 +12,7 @@
 		<activity
 				android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
 				android:name="org.golang.app.GoNativeActivity"
-				android:label="Piano"
-				android:screenOrientation="landscape">
+				android:label="Piano">
 			<meta-data android:name="android.app.lib_name" android:value="piano" />
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />

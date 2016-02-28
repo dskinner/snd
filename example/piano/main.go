@@ -1,10 +1,15 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"log"
-	"math"
+	"os"
+	"runtime/pprof"
 	"time"
 
+	"dasa.cc/material"
+	"dasa.cc/material/icon"
 	"dasa.cc/snd"
 	"dasa.cc/snd/al"
 
@@ -18,216 +23,27 @@ import (
 
 const buffers = 1
 
-// TODO this file got out of hand ..
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
 var (
-	sz size.Event
+	env     = new(material.Environment)
+	toolbar *material.Toolbar
+	btnNext *material.FloatingActionButton
+	btnkeys [12]*material.Button
+	decor   *material.Material
+	mixwf   *Waveform
 
 	fps       int
 	lastpaint = time.Now()
-
-	ms = time.Millisecond
-
-	sawtooth = snd.Sawtooth()
-	sawsine  = snd.SawtoothSynthesis(8)
-	square   = snd.Square()
-	sqsine   = snd.SquareSynthesis(49)
-	sine     = snd.Sine()
-	triangle = snd.Triangle()
-
-	notes = snd.EqualTempermant(12, 440, 48)
-	keys  [12]Key
-
-	bpm snd.BPM = 80
-
-	reverb    snd.Sound
-	metronome snd.Sound
-	loop      *snd.Loop
-
-	// nframes
-	loopdur int = snd.Dtof(bpm.Dur(), snd.DefaultSampleRate) * 8
-
-	btnreverb    *snd.Button
-	btnlowpass   *snd.Button
-	btnmetronome *snd.Button
-	btnloop      *snd.LoopButton
-	btnsndbank   *snd.Button
-
-	piano   *Piano
-	pianowf *snd.Waveform
-
-	keymix  *snd.Mixer
-	keygain *snd.Gain
-
-	lowpass *snd.LowPass
-
-	master     *snd.Mixer
-	mastergain *snd.Gain
-	mixwf      *snd.Waveform
-
-	touchseq = make(map[touch.Sequence]int)
-
-	sndbank    = []KeyFunc{NewPianoKey, NewWobbleKey, NewBeatsKey}
-	sndbankpos = 0
 )
 
-type Key interface {
-	snd.Sound
-	Press()
-	Release()
-	Freeze()
-}
-
-type KeyFunc func(int) Key
-
-type BeatsKey struct {
-	*snd.Instrument
-	adsr *snd.ADSR
-}
-
-func NewBeatsKey(idx int) Key {
-	osc := snd.NewOscil(sawsine, notes[idx], snd.NewOscil(triangle, 4, nil))
-	dmp := snd.NewDamp(bpm.Dur(), osc)
-	d := snd.BPM(float64(bpm) * 1.25).Dur()
-	dmp1 := snd.NewDamp(d, osc)
-	drv := snd.NewDrive(d, osc)
-	mix := snd.NewMixer(dmp, dmp1, drv)
-
-	frz := snd.NewFreeze(bpm.Dur()*4, mix)
-
-	adsr := snd.NewADSR(250*ms, 500*ms, 300*ms, 400*ms, 0.85, 1.0, frz)
-	key := &BeatsKey{snd.NewInstrument(adsr), adsr}
-	key.Off()
-	return key
-}
-
-func (key *BeatsKey) Press() {
-	key.adsr.Restart()
-	key.adsr.Sustain()
-	key.On()
-}
-func (key *BeatsKey) Release() {
-	key.adsr.Release()
-	key.OffIn(400 * ms)
-}
-func (key *BeatsKey) Freeze() {}
-
-type WobbleKey struct {
-	*snd.Instrument
-	adsr *snd.ADSR
-}
-
-func NewWobbleKey(idx int) Key {
-	osc := snd.NewOscil(sine, notes[idx], snd.NewOscil(triangle, 2, nil))
-	adsr := snd.NewADSR(50*ms, 100*ms, 200*ms, 400*ms, 0.6, 0.9, osc)
-	key := &WobbleKey{snd.NewInstrument(adsr), adsr}
-	key.Off()
-	return key
-}
-
-func (key *WobbleKey) Press() {
-	key.adsr.Restart()
-	key.adsr.Sustain()
-	key.On()
-}
-func (key *WobbleKey) Release() {
-	key.adsr.Release()
-	key.OffIn(400 * ms)
-}
-func (key *WobbleKey) Freeze() {}
-
-type PianoKey struct {
-	*snd.Instrument
-
-	freq float64
-
-	osc, mod, phs    *snd.Oscil
-	oscl, modl, phsl *snd.Oscil
-	oscr, modr, phsr *snd.Oscil
-
-	adsr0, adsr1 *snd.ADSR
-
-	gain *snd.Gain
-
-	dur    time.Duration
-	reldur time.Duration
-
-	frz *snd.Freeze
-}
-
-func NewPianoKey(idx int) Key {
-	const phasefac float64 = 0.5063999999999971
-
-	k := &PianoKey{}
-
-	k.freq = notes[idx]
-	k.mod = snd.NewOscil(sqsine, k.freq/2, nil)
-	k.osc = snd.NewOscil(sawtooth, k.freq, k.mod)
-	k.phs = snd.NewOscil(square, k.freq*phasefac, nil)
-	k.osc.SetPhase(k.phs)
-
-	freql := k.freq * math.Pow(2, -10.0/1200)
-	k.modl = snd.NewOscil(sqsine, freql/2, nil)
-	k.oscl = snd.NewOscil(sawtooth, freql, k.modl)
-	k.phsl = snd.NewOscil(square, freql*phasefac, nil)
-	k.oscl.SetPhase(k.phsl)
-
-	freqr := k.freq * math.Pow(2, 10.0/1200)
-	k.modr = snd.NewOscil(sqsine, freqr/2, nil)
-	k.oscr = snd.NewOscil(sawtooth, freqr, k.modr)
-	k.phsr = snd.NewOscil(square, freqr*phasefac, nil)
-	k.oscr.SetPhase(k.phsr)
-
-	oscmix := snd.NewMixer(k.osc, k.oscl, k.oscr)
-
-	k.reldur = 1050 * ms
-	k.dur = 280*ms + k.reldur
-	k.adsr0 = snd.NewADSR(30*ms, 50*ms, 200*ms, k.reldur, 0.4, 1, oscmix)
-	k.adsr1 = snd.NewADSR(1*ms, 278*ms, 1*ms, k.reldur, 0.4, 1, oscmix)
-	adsrmix := snd.NewMixer(k.adsr0, k.adsr1)
-
-	k.gain = snd.NewGain(snd.Decibel(-10).Amp(), adsrmix)
-
-	k.Instrument = snd.NewInstrument(k.gain)
-	k.Off()
-
-	return k
-}
-
-func (key *PianoKey) Freeze() {
-	key.On()
-	key.frz = snd.NewFreeze(key.dur, key.gain)
-	key.Instrument = snd.NewInstrument(key.frz)
-	key.Off()
-}
-
-func (key *PianoKey) Press() {
-	key.On()
-	key.OffIn(key.dur)
-	if key.frz == nil {
-		key.adsr0.Restart()
-		key.adsr1.Restart()
-	} else {
-		key.frz.Restart()
-	}
-}
-
-func (key *PianoKey) Release() {
-	if key.frz == nil {
-		if key.adsr0.Release() && key.adsr1.Release() {
-			key.OffIn(key.reldur)
-		}
-	}
-}
-
-func makekeys() {
-	keymix.Empty()
-	for i := range keys {
-		keys[i] = sndbank[sndbankpos](51 + i) // notes[51] is Major C
-		keys[i].Freeze()
-		keymix.Append(keys[i])
-	}
-	al.Notify()
+func init() {
+	env.SetPalette(material.Palette{
+		Primary: material.BlueGrey500,
+		Dark:    material.BlueGrey100,
+		Light:   material.BlueGrey900,
+		Accent:  material.DeepOrangeA200,
+	})
 }
 
 func onStart(ctx gl.Context) {
@@ -236,6 +52,99 @@ func onStart(ctx gl.Context) {
 
 	if err := al.OpenDevice(buffers); err != nil {
 		log.Fatal(err)
+	}
+
+	env.LoadIcons(ctx)
+	env.LoadGlyphs(ctx)
+
+	toolbar = env.NewToolbar(ctx)
+	toolbar.SetText("piano")
+	toolbar.SetTextColor(material.White)
+	toolbar.Nav.SetIconColor(material.White)
+
+	btnLoop := env.NewButton(ctx)
+	toolbar.AddAction(btnLoop)
+	btnLoop.SetIcon(icon.AvFiberSmartRecord)
+	btnLoop.SetIconColor(material.White)
+	btnLoop.OnPress = func() {
+		if loop.IsOff() {
+			btnLoop.SetIconColor(env.Palette().Accent)
+			loop.Record()
+		} else {
+			btnLoop.SetIconColor(material.White)
+			loop.Stop()
+		}
+	}
+
+	btnMetronome := env.NewButton(ctx)
+	toolbar.AddAction(btnMetronome)
+	btnMetronome.SetIcon(icon.AvSlowMotionVideo)
+	btnMetronome.SetIconColor(material.White)
+	btnMetronome.OnPress = func() {
+		if metronome.IsOff() {
+			metronome.On()
+		} else {
+			metronome.Off()
+		}
+	}
+
+	btnLowpass := env.NewButton(ctx)
+	toolbar.AddAction(btnLowpass)
+	btnLowpass.SetIcon(icon.AvSubtitles)
+	btnLowpass.SetIconColor(material.White)
+	btnLowpass.OnPress = func() {
+		lowpass.SetPassthrough(!lowpass.Passthrough())
+	}
+
+	btnReverb := env.NewButton(ctx)
+	toolbar.AddAction(btnReverb)
+	btnReverb.SetIcon(icon.AvSurroundSound)
+	btnReverb.SetIconColor(material.White)
+	btnReverb.OnPress = func() {
+		if reverb.IsOff() {
+			reverb.On()
+			keygain.SetAmp(snd.Decibel(-3).Amp())
+		} else {
+			reverb.Off()
+			keygain.SetAmp(snd.Decibel(3).Amp())
+		}
+	}
+
+	btnNext = env.NewFloatingActionButton(ctx)
+	btnNext.Mini = true
+	btnNext.SetColor(env.Palette().Accent)
+	btnNext.SetIcon(icon.AvSkipNext)
+	btnNext.OnPress = func() {
+		sndbankpos = (sndbankpos + 1) % len(sndbank)
+		go makekeys()
+	}
+
+	decor = env.NewMaterial(ctx)
+	decor.SetColor(material.BlueGrey900)
+
+	tseq := make(map[touch.Sequence]int)
+	for i := range btnkeys {
+		btnkeys[i] = env.NewButton(ctx)
+		j := i
+		btnkeys[i].OnTouch = func(ev touch.Event) {
+			switch ev.Type {
+			case touch.TypeBegin:
+				keys[j].Press()
+				tseq[ev.Sequence] = j
+			case touch.TypeMove:
+				// TODO drag finger off piano and it still plays, should stop
+				if last, ok := tseq[ev.Sequence]; ok {
+					if j != last {
+						keys[last].Release()
+						keys[j].Press()
+						tseq[ev.Sequence] = j
+					}
+				}
+			case touch.TypeEnd:
+				keys[j].Release()
+				delete(tseq, ev.Sequence)
+			}
+		}
 	}
 
 	var err error
@@ -259,7 +168,8 @@ func onStart(ctx gl.Context) {
 
 	master = snd.NewMixer(loopmix)
 	mastergain = snd.NewGain(snd.Decibel(-6).Amp(), master)
-	mixwf, err = snd.NewWaveform(ctx, 2, mastergain)
+	mixwf, err = NewWaveform(ctx, 2, mastergain)
+	mixwf.SetColor(material.BlueGrey700)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -271,179 +181,129 @@ func onStart(ctx gl.Context) {
 	metronome.Off()
 	master.Append(metronome)
 
-	piano = NewPiano()
-	pianowf, err = snd.NewWaveform(ctx, 1, piano)
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	al.AddSource(pan)
-
-	yoff := float32(-0) //.12)
-
-	btnreverb = snd.NewButton(ctx, -0.98, 0.96+yoff, 0.2, -0.2)
-	btnreverb.SetActiveColor(0, 1, 0, 0.5)
-	btnreverb.SetActive(true)
-
-	btnlowpass = snd.NewButton(ctx, -0.76, 0.96+yoff, 0.2, -0.2)
-	btnlowpass.SetActiveColor(0, 1, 1, 0.5)
-	btnlowpass.SetActive(true)
-
-	btnmetronome = snd.NewButton(ctx, -0.54, 0.96+yoff, 0.2, -0.2)
-	btnmetronome.SetActiveColor(0, 0, 1, 0.5)
-
-	btnloop = snd.NewLoopButton(snd.NewButton(ctx, -0.32, 0.96+yoff, 0.2, -0.2), loop)
-	btnloop.SetActiveColor(1, 0, 0, 0.5)
-
-	btnsndbank = snd.NewButton(ctx, 0.78, 0.96+yoff, 0.2, -0.2)
-	btnsndbank.SetActive(true)
-	btnsndbank.SetActiveColor(sndbankcolor())
-}
-
-func sndbankcolor() (r, g, b, a float32) {
-	i := float32(((sndbankpos + 1) * 29) % 256)
-	a, b, c := i*8/255, i*2/255, i*4/255
-	if int(i)%2 == 0 {
-		a, b = b, a
-	} else if int(i)%3 == 0 {
-		b, c = c, b
-	}
-	return a, b, c, 0.5
 }
 
 func onPaint(ctx gl.Context) {
-	ctx.ClearColor(0, 0, 0, 1)
+	ctx.ClearColor(material.BlueGrey800.RGBA())
 	ctx.Clear(gl.COLOR_BUFFER_BIT)
-
-	pianowf.Prepare(1)
-	switch sz.Orientation {
-	case size.OrientationPortrait:
-		pianowf.Paint(ctx, -1, -1, 2, 0.5)
-		mixwf.Paint(ctx, -1, 0.25, 2, 0.5)
-	default:
-		pianowf.Paint(ctx, -1, -1, 2, 1)
-		mixwf.Paint(ctx, -1, 0.25, 2, 0.5)
-	}
-
-	btnreverb.Paint(ctx)
-	btnlowpass.Paint(ctx)
-	btnmetronome.Paint(ctx)
-	btnloop.Paint(ctx)
-	btnsndbank.Paint(ctx)
+	env.Draw(ctx)
 
 	now := time.Now()
 	fps = int(time.Second / now.Sub(lastpaint))
 	lastpaint = now
 }
 
-func onTouch(ev touch.Event) {
+func onLayout(sz size.Event) {
+	toolbar.Span(4, 4, 4)
+	env.SetOrtho(sz)
+	env.StartLayout()
+	env.AddConstraints(btnNext.Constraints(env)...)
+	env.AddConstraints(
+		btnNext.EndIn(mixwf.Box, env.Grid.Gutter), btnNext.BottomIn(mixwf.Box, env.Grid.Gutter),
+		mixwf.StartIn(env.Box, env.Grid.Gutter), mixwf.EndIn(decor.Box, 0),
+		mixwf.Below(toolbar.Box, env.Grid.Gutter), mixwf.Above(decor.Box, env.Grid.Gutter), mixwf.Z(1),
+	)
 
-	idx := piano.KeyAt(ev, sz)
-	if idx == -1 {
-		// top half
-		switch ev.Type {
-		case touch.TypeBegin:
-			if btnreverb.HitTest(ev, sz) {
-				btnreverb.SetActive(!btnreverb.IsActive())
-				if btnreverb.IsActive() {
-					reverb.On()
-					keygain.SetAmp(snd.Decibel(-3).Amp())
-				} else {
-					reverb.Off()
-					keygain.SetAmp(snd.Decibel(3).Amp())
-				}
-			} else if btnlowpass.HitTest(ev, sz) {
-				btnlowpass.SetActive(!btnlowpass.IsActive())
-				lowpass.SetPassthrough(!btnlowpass.IsActive())
-			} else if btnmetronome.HitTest(ev, sz) {
-				btnmetronome.SetActive(!btnmetronome.IsActive())
-				if btnmetronome.IsActive() {
-					metronome.On()
-				} else {
-					metronome.Off()
-				}
-			} else if btnloop.HitTest(ev, sz) {
-				if !btnloop.IsActive() {
-					btnloop.SetActiveColor(1, 1, 0, 0.5)
-					btnloop.SetActive(true)
-					loop.Record()
-				} else {
-					loop.Stop()
-				}
-			} else if btnsndbank.HitTest(ev, sz) {
-				sndbankpos = (sndbankpos + 1) % len(sndbank)
-				btnsndbank.SetActiveColor(sndbankcolor())
-				go makekeys()
-			}
-		case touch.TypeMove:
+	wmjr := env.Grid.StepSize()*4/7 - 2
+	wmnr := wmjr * 13.7 / 23.5
+	hmjr := wmjr * 4
+	hmnr := wmnr * 4
+
+	prevmjr := func(n int) int {
+		switch n {
+		case 2:
+			return 0
+		case 4:
+			return 2
+		case 5:
+			return 4
+		case 7:
+			return 5
+		case 9:
+			return 7
+		case 11:
+			return 9
+		default:
+			panic(fmt.Errorf("invalid prevmjr(%v)", n))
 		}
-		// TODO drag finger off piano and it still plays, shouldn't return here
-		// to allow TypeMove to figure out what to turn off
-		return
 	}
-
-	if keys[idx] == nil {
-		return
-	}
-
-	switch ev.Type {
-	case touch.TypeBegin:
-		keys[idx].Press()
-		touchseq[ev.Sequence] = idx
-	case touch.TypeMove:
-		// TODO drag finger off piano and it still plays, should stop
-		if lastidx, ok := touchseq[ev.Sequence]; ok {
-			if idx != lastidx {
-				keys[lastidx].Release()
-				keys[idx].Press()
-				touchseq[ev.Sequence] = idx
-			}
+	for i, btn := range btnkeys {
+		switch i {
+		case 0:
+			btn.SetColor(material.BlueGrey100)
+			env.AddConstraints(
+				btn.Width(wmjr), btn.Height(hmjr), btn.Z(4),
+				btn.BottomIn(env.Box, env.Grid.Gutter), btn.StartIn(env.Box, env.Grid.Gutter))
+		case 1, 3, 6, 8, 10:
+			btn.SetColor(material.BlueGrey900)
+			env.AddConstraints(
+				btn.Width(wmnr), btn.Height(hmnr), btn.Z(6),
+				btn.AlignTops(btnkeys[i-1].Box, 0), btn.StartIn(btnkeys[i-1].Box, wmjr-wmnr/2))
+		default:
+			btn.SetColor(material.BlueGrey100)
+			env.AddConstraints(
+				btn.Width(wmjr), btn.Height(hmjr), btn.Z(4),
+				btn.BottomIn(env.Box, env.Grid.Gutter), btn.After(btnkeys[prevmjr(i)].Box, 2))
 		}
-	case touch.TypeEnd:
-		keys[idx].Release()
-		delete(touchseq, ev.Sequence)
-	default:
 	}
+	env.AddConstraints(
+		decor.Height(45), decor.Z(14), decor.Above(btnkeys[0].Box, 2),
+		decor.StartIn(btnkeys[0].Box, 0), decor.EndIn(btnkeys[len(btnkeys)-1].Box, 0),
+	)
+	env.FinishLayout()
 }
 
 func main() {
-	app.Main(func(a app.App) {
-		var (
-			glctx   gl.Context
-			visible bool
-			logdbg  = time.NewTicker(time.Second)
-		)
-
+	flag.Parse()
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
 		go func() {
-			for range logdbg.C {
-				log.Printf("fps=%-4v underruns=%-4v buflen=%-4v tickavg=%-12s drift=%s\n",
-					fps, al.Underruns(), al.BufLen(), al.TickAverge(), al.DriftApprox())
-			}
+			time.Sleep(10 * time.Second)
+			pprof.StopCPUProfile()
 		}()
+	}
 
+	app.Main(func(a app.App) {
+		var logdbg *time.Ticker
+		var glctx gl.Context
 		for ev := range a.Events() {
 			switch ev := a.Filter(ev).(type) {
 			case lifecycle.Event:
 				switch ev.Crosses(lifecycle.StageVisible) {
 				case lifecycle.CrossOn:
-					visible = true
+					logdbg = time.NewTicker(time.Second)
+					go func() {
+						for range logdbg.C {
+							log.Printf("fps=%-4v underruns=%-4v buflen=%-4v tickavg=%-12s drift=%s\n",
+								fps, al.Underruns(), al.BufLen(), al.TickAverge(), al.DriftApprox())
+						}
+					}()
 					glctx = ev.DrawContext.(gl.Context)
 					onStart(glctx)
 					al.Start()
 				case lifecycle.CrossOff:
-					visible = false
+					glctx = nil
 					logdbg.Stop()
 					al.Stop()
 					al.CloseDevice()
 				}
 			case touch.Event:
-				onTouch(ev)
+				env.Touch(ev)
 			case size.Event:
-				sz = ev
+				if glctx == nil {
+					a.Send(ev)
+				} else {
+					onLayout(ev)
+				}
 			case paint.Event:
-				onPaint(glctx)
-				a.Publish()
-				if visible {
+				if glctx != nil {
+					onPaint(glctx)
+					a.Publish()
 					a.Send(paint.Event{})
 				}
 			}
