@@ -44,16 +44,17 @@ func (b *bufc) write(x float64) (end bool) {
 	return
 }
 
-// dtof converts time duration to approximate number of representative frames.
+// Dtof converts time duration to approximate number of representative frames.
 func Dtof(d time.Duration, sr float64) (f int) {
 	return int(float64(d) / float64(time.Second) * sr)
 }
 
-// ftod converts f, number of frames, to approximate time duration.
+// Ftod converts f, number of frames, to approximate time duration.
 func Ftod(f int, sr float64) (d time.Duration) {
 	return time.Duration(float64(f) / sr * float64(time.Second))
 }
 
+// Delay represents a signal delayed by a given duration.
 type Delay struct {
 	*mono
 	line *bufc
@@ -76,6 +77,7 @@ func (dly *Delay) Prepare(uint64) {
 }
 
 // Tap is a tapped delay line, essentially a shorter delay within a larger one.
+//
 // TODO consider some type of method on Delay instead of a separate type.
 // For example, Tap intentionally does not expose dly via Inputs() so why is it
 // its own type? Conversely, that'd make Delay a mixer of sorts.
@@ -113,6 +115,7 @@ func (tap *Tap) Prepare(uint64) {
 	}
 }
 
+// Comb adds a delayed version of a signal onto itself.
 type Comb struct {
 	*mono
 	line *bufc
@@ -134,6 +137,9 @@ func (cmb *Comb) Prepare(uint64) {
 	}
 }
 
+// Loop records a signal by a given duration, repeating the recording
+// in subsequent playback.
+//
 // TODO cross-fade
 type Loop struct {
 	*mono
@@ -145,10 +151,12 @@ type Loop struct {
 	syncpos int
 }
 
+// NewLoop returns a Loop with sample buffer of a length approximated by d.
 func NewLoop(d time.Duration, in Sound) *Loop {
 	return &Loop{newmono(in), newbufc(Dtof(d, in.SampleRate()), 0), false, false, 0, 0}
 }
 
+// NewLoopFrames return a Loop with sample buffer of length nframes.
 func NewLoopFrames(nframes int, in Sound) *Loop {
 	return &Loop{newmono(in), newbufc(nframes, 0), false, false, 0, 0}
 }

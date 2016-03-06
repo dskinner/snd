@@ -55,11 +55,7 @@ func mksound() Sound {
 	loop := NewLoop(5*time.Second, mix)
 	mixloop := NewMixer(mix, loop)
 	lp := NewLowPass(1500, mixloop)
-	mixwf, err := NewWaveform(nil, 4, lp)
-	if err != nil {
-		panic(err)
-	}
-	return NewPan(0, mixwf)
+	return NewPan(0, lp)
 }
 
 // func mkthoughtsaboutcreatingstuff() Sound {

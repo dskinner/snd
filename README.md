@@ -1,9 +1,14 @@
-# snd
+# Package snd [![GoDoc](https://godoc.org/dasa.cc/snd?status.svg)](https://godoc.org/dasa.cc/snd)
 
-written for go challenge #7.
+Package snd provides methods and types for sound processing and synthesis.
+
+## Tests
+
+In addition to regular unit tests, there are plot tests that produce images
+saved to a plots/ folder. This depends on package gonum/plot and requires an
+additional tag flag to enable as follows:
 
 ```
-# plots are saved to plots/ folder
 go get github.com/gonum/plot
 go test -tags plot
 ```
