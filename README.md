@@ -16,3 +16,8 @@ additional tag flag to enable as follows:
 go get github.com/gonum/plot
 go test -tags plot
 ```
+
+## SndObj
+
+This package was very much inspired by Victor Lazzarini's [SndObj Library](http://sndobj.sourceforge.net/)
+for which I spent countless hours enjoying, and without it I may never have come to program.
