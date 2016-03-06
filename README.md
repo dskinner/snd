@@ -2,6 +2,10 @@
 
 Package snd provides methods and types for sound processing and synthesis.
 
+```
+go get dasa.cc/snd
+```
+
 ## Tests
 
 In addition to regular unit tests, there are plot tests that produce images
