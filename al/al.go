@@ -168,6 +168,10 @@ func Tick() {
 	if code := al.Error(); code != 0 {
 		log.Printf("snd/al: unknown error [err=%v]\n", code)
 	}
+	if len(hwa.inputs) == 0 {
+		log.Println("snd/al: inputs not ready")
+		return
+	}
 
 	bufs := hwa.buf.Get()
 
