@@ -50,16 +50,20 @@ func onStart(ctx gl.Context) {
 	ctx.Enable(gl.BLEND)
 	ctx.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
 
+	ctx.Enable(gl.CULL_FACE)
+	ctx.CullFace(gl.BACK)
+
 	if err := al.OpenDevice(buffers); err != nil {
 		log.Fatal(err)
 	}
 
+	env.Load(ctx)
 	env.LoadIcons(ctx)
 	env.LoadGlyphs(ctx)
 
 	toolbar = env.NewToolbar(ctx)
-	toolbar.SetText("piano")
-	toolbar.SetTextColor(material.White)
+	toolbar.Title.SetText("piano")
+	toolbar.Title.SetTextColor(material.White)
 	toolbar.Nav.SetIconColor(material.White)
 
 	btnLoop := env.NewButton(ctx)
@@ -67,12 +71,12 @@ func onStart(ctx gl.Context) {
 	btnLoop.SetIcon(icon.AvFiberSmartRecord)
 	btnLoop.SetIconColor(material.White)
 	btnLoop.OnPress = func() {
-		if loop.IsOff() {
-			btnLoop.SetIconColor(env.Palette().Accent)
-			loop.Record()
-		} else {
+		if loop.Recording() {
 			btnLoop.SetIconColor(material.White)
 			loop.Stop()
+		} else {
+			btnLoop.SetIconColor(env.Palette().Accent)
+			loop.Record()
 		}
 	}
 
@@ -83,30 +87,39 @@ func onStart(ctx gl.Context) {
 	btnMetronome.OnPress = func() {
 		if metronome.IsOff() {
 			metronome.On()
+			btnMetronome.SetIconColor(env.Palette().Accent)
 		} else {
 			metronome.Off()
+			btnMetronome.SetIconColor(material.White)
 		}
 	}
 
 	btnLowpass := env.NewButton(ctx)
 	toolbar.AddAction(btnLowpass)
 	btnLowpass.SetIcon(icon.AvSubtitles)
-	btnLowpass.SetIconColor(material.White)
+	btnLowpass.SetIconColor(env.Palette().Accent)
 	btnLowpass.OnPress = func() {
 		lowpass.SetPassthrough(!lowpass.Passthrough())
+		if lowpass.Passthrough() {
+			btnLowpass.SetIconColor(material.White)
+		} else {
+			btnLowpass.SetIconColor(env.Palette().Accent)
+		}
 	}
 
 	btnReverb := env.NewButton(ctx)
 	toolbar.AddAction(btnReverb)
 	btnReverb.SetIcon(icon.AvSurroundSound)
-	btnReverb.SetIconColor(material.White)
+	btnReverb.SetIconColor(env.Palette().Accent)
 	btnReverb.OnPress = func() {
 		if reverb.IsOff() {
 			reverb.On()
 			keygain.SetAmp(snd.Decibel(-3).Amp())
+			btnReverb.SetIconColor(env.Palette().Accent)
 		} else {
 			reverb.Off()
 			keygain.SetAmp(snd.Decibel(3).Amp())
+			btnReverb.SetIconColor(material.White)
 		}
 	}
 
@@ -188,6 +201,7 @@ func onPaint(ctx gl.Context) {
 	ctx.ClearColor(material.BlueGrey800.RGBA())
 	ctx.Clear(gl.COLOR_BUFFER_BIT)
 	env.Draw(ctx)
+	mixwf.Draw(ctx, env.View, env.Proj())
 
 	now := time.Now()
 	fps = int(time.Second / now.Sub(lastpaint))
@@ -248,7 +262,7 @@ func onLayout(sz size.Event) {
 		}
 	}
 	env.AddConstraints(
-		decor.Height(45), decor.Z(14), decor.Above(btnkeys[0].Box, 2),
+		decor.Height(45), decor.Z(8), decor.Above(btnkeys[0].Box, 2),
 		decor.StartIn(btnkeys[0].Box, 0), decor.EndIn(btnkeys[len(btnkeys)-1].Box, 0),
 	)
 	env.FinishLayout()

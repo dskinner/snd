@@ -6,5 +6,5 @@ uniform mat4 view;
 uniform mat4 proj;
 
 void main() {
-  gl_Position = position * world * view * proj;
+  gl_Position = proj * view * world * position;
 }
