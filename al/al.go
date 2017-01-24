@@ -98,7 +98,7 @@ func CloseDevice() error {
 	return nil
 }
 
-func AddSource(in snd.Sound) error {
+func setSource(in snd.Sound) error {
 	switch in.Channels() {
 	case 1:
 		hwa.format = al.FormatMono16
@@ -135,11 +135,12 @@ func SoftLatency() time.Duration {
 	return time.Duration(nframes * float64(hwa.buf.size) / hwa.in.SampleRate() * float64(time.Second))
 }
 
-func Start() {
+func Start(in snd.Sound) {
 	if hwa.quit != nil {
 		panic("snd/al: hwa.quit not nil")
 	}
 	hwa.quit = make(chan struct{})
+	setSource(in)
 	go func() {
 		hwa.start = time.Now()
 		Tick()

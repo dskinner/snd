@@ -194,7 +194,8 @@ func onStart(ctx gl.Context) {
 	metronome.Off()
 	master.Append(metronome)
 
-	al.AddSource(pan)
+	al.Start(pan)
+	al.Notify()
 }
 
 func onPaint(ctx gl.Context) {
@@ -299,7 +300,6 @@ func main() {
 					}()
 					glctx = ev.DrawContext.(gl.Context)
 					onStart(glctx)
-					al.Start()
 				case lifecycle.CrossOff:
 					glctx = nil
 					logdbg.Stop()

@@ -3,6 +3,7 @@ package snd
 // TODO should mixer be stereo out?
 // TODO perhaps this class is unnecessary, any sound could be a mixer
 // if you can set multiple inputs, but might get confusing.
+// TODO consider embedding Gain type
 type Mixer struct {
 	*mono
 	ins []Sound
