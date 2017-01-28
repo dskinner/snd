@@ -4,3 +4,4 @@
 plots/
 *.prof
 *.test
+*.so

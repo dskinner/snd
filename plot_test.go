@@ -79,7 +79,7 @@ func xyer(out []float64) plotter.XYs {
 }
 
 func TestPlotOscil(t *testing.T) {
-	plt := newplttr(1)
+	plt := newplttr(4)
 	freq := 440.0
 	pth := 3
 	td := []struct {
@@ -91,7 +91,7 @@ func TestPlotOscil(t *testing.T) {
 		// {"Triangle", Triangle},
 		// {"Sawtooth", Sawtooth},
 		{"Square Sinusoidal", func() Discrete { return SquareSynthesis(pth) }},
-		// {"Sawtooth Sinusoidal", func() Discrete { return SawtoothSynthesis(pth) }},
+		{"Sawtooth Sinusoidal", func() Discrete { return SawtoothSynthesis(pth) }},
 	}
 
 	for _, d := range td {
@@ -205,7 +205,7 @@ func TestPlotNorm(t *testing.T) {
 
 	sq0 := Sine()
 	for i := 3; i <= 99; i += 2 {
-		sq0.Add(fundamental, i)
+		AdditiveSynthesis(sq0, fundamental, i)
 	}
 	sq1 := make(Discrete, len(sq0))
 	copy(sq1, sq0)
@@ -213,6 +213,9 @@ func TestPlotNorm(t *testing.T) {
 	sq1.NormalizeRange(-1, 1)
 	plt.addDiscrete("Normalize", sq0)
 	plt.addDiscrete("NormalizeRange", sq1)
+
+	drv := LinearDrive()
+	plt.addDiscrete("Drive", drv)
 
 	if err := plt.save("norm.png"); err != nil {
 		t.Fatal(err)
@@ -232,6 +235,59 @@ func TestPlotFreeze(t *testing.T) {
 	plt.add("Freeze", frz)
 
 	if err := plt.save("freeze.png"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPlotSampleDown(t *testing.T) {
+	plt := newplttr(1)
+
+	a := make(Discrete, 256)
+	Continuous(SineFunc).Sample(a, 256)
+	plt.addDiscrete("Sine SR 256", a)
+
+	b := make(Discrete, 256)
+	Continuous(SineFunc).Sample(b, 128) // * (len(a)/256) == 1
+	plt.addDiscrete("Sine SR 128", b)
+
+	c := make(Discrete, 128)
+	a.Sample(c, 64) // * (len(a)/256) == 1
+
+	d := make(Discrete, 256)
+	c.Sample(d, 256*(128/64))
+
+	c = append(c, make(Discrete, 128)...) // pad so plotter doesn't stretch compared to others
+	plt.addDiscrete("Downsample SR 256 -> 64", c)
+	plt.addDiscrete("Upsample SR 64 -> 256", d)
+
+	if err := plt.save("sampledown.png"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPlotVerse(t *testing.T) {
+	plt := newplttr(1)
+
+	a := make(Discrete, 256)
+	Continuous(ExpDecayFunc).Sample(a, 256)
+	plt.addDiscrete("ExpDecay", a)
+
+	b := make(Discrete, 256)
+	a.Sample(b, 256)
+	b.Reverse()
+	plt.addDiscrete("Reverse", b)
+
+	c := make(Discrete, 256)
+	a.Sample(c, 256)
+	c.UnitInverse()
+	plt.addDiscrete("UnitInverse", c)
+
+	d := make(Discrete, 256)
+	a.Sample(d, 256)
+	d.AdditiveInverse()
+	plt.addDiscrete("AdditiveInverse", d)
+
+	if err := plt.save("verse.png"); err != nil {
 		t.Fatal(err)
 	}
 }

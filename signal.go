@@ -1,50 +1,73 @@
 package snd
 
-import (
-	"fmt"
-	"math"
-)
+import "math"
 
 const twopi = 2 * math.Pi
 
-// ContinuousFunc represents a continuous signal over infinite time.
-type ContinuousFunc func(t float64) float64
+type Sampler interface {
+	// Sample samples len(s) values into s at the sampling frequency f.
+	//
+	// If sampling a Discrete, set the sampling frequency to desiredSampleRate*(len(source)/sourceSampleRate).
+	//
+	// If building a lookup table, let f = len(s).
+	//
+	// TODO should this accept phase arg as well?
+	Sample(s Discrete, f Hertz)
+}
 
-// Discrete represents a discrete signal over its length as time.
+// Continuous represents a continuous-time signal.
+type Continuous func(t float64) float64
+
+// Sample satisfies Sampler interface.
+func (fn Continuous) Sample(s Discrete, f Hertz) {
+	for i := 0; i < len(s); i++ {
+		t := float64(i) / float64(f)
+		s[i] = fn(t)
+	}
+}
+
+// Discrete represents a discrete-time signal.
 type Discrete []float64
 
-// SampleFunc samples a ContinuousFunc over time belonging to [0..1].
-// If sig is nil, space will be allocated.
-// Length of sig must be a power of 2 or Sample will panic.
-func (sig *Discrete) SampleFunc(fn ContinuousFunc) {
-	if *sig == nil {
-		*sig = make(Discrete, DefaultBufferLen)
-	}
-	if n := len(*sig); n == 0 || n&(n-1) != 0 {
-		panic(fmt.Errorf("Discrete len(%v) not a power of 2", n))
-	}
-	n := float64(len(*sig))
-	for i := 0.0; i < n; i++ {
-		(*sig)[int(i)] = fn(i / n)
+// Sample satisfies Sampler interface, interpolating values where necessary.
+// To sample without interpolation, use Continuous(sig.Index).Sample.
+func (sig Discrete) Sample(s Discrete, f Hertz) {
+	for i := 0; i < len(s); i++ {
+		t := float64(i) / float64(f)
+		s[i] = sig.Interpolate(t)
 	}
 }
 
-// SampleUnit accepts value t belonging to [0..1] and returns corresponding value
-// from sig by length.
-func (sig *Discrete) SampleUnit(t float64) float64 {
-	if t > 1 {
-		t = 1
+// Interpolate uses the fractional component of t to return an interpolated value,
+// where t may be considered the sampling period of len(sig).
+//
+// TODO currently does linear interpolation...
+func (sig Discrete) Interpolate(t float64) float64 {
+	t -= float64(int(t))   // fractional
+	t *= float64(len(sig)) // integer is index, fractional is amount to interpolate to next index
+
+	frac := t - float64(int(t))
+	i := int(t - frac)
+
+	if frac == 0 {
+		return sig[i]
 	}
-	if t < 0 {
-		t = 0
+
+	j := i + 1
+	if j == len(sig) {
+		j = 0
 	}
-	n := float64(len(*sig) - 1)
-	i := int(t * n)
-	return (*sig)[i]
+
+	return (1-frac)*sig[i] + frac*sig[j]
 }
 
-func (sig *Discrete) Sample(i int) float64 {
-	return (*sig)[i&(len(*sig)-1)]
+// Index uses the fractional component of t to find the nearest
+// truncated index and returns the value, where t may be considered
+// the sampling period of len(sig).
+func (sig Discrete) Index(t float64) float64 {
+	t -= float64(int(t))
+	t *= float64(len(sig))
+	return sig[int(t)]
 }
 
 // Normalize alters sig so values belong to [-1..1].
@@ -59,11 +82,12 @@ func (sig *Discrete) Normalize() {
 	for i, x := range *sig {
 		(*sig)[i] = x / max
 	}
-	(*sig)[len(*sig)-1] = (*sig)[0]
-	// sig.NormalizeRange(-1, 1)
 }
 
 // NormalizeRange alters sig so values belong to [s..e].
+//
+// Calling this method for values that already occupy [s..e] will degrade values
+// further due to round-off error.
 func (sig *Discrete) NormalizeRange(s, e float64) {
 	if s > e {
 		s, e = e, s
@@ -79,14 +103,13 @@ func (sig *Discrete) NormalizeRange(s, e float64) {
 			max = x
 		}
 	}
-
+	r := max - min
 	for i, x := range *sig {
-		pct := (x - min) / (max - min)
-		(*sig)[i] = s + pct*n
+		(*sig)[i] = s + n*(x-min)/r
 	}
-	(*sig)[len(*sig)-1] = (*sig)[0]
 }
 
+// Reverse sig in place so the first element becomes the last and the last element becomes the first.
 func (sig *Discrete) Reverse() {
 	for l, r := 0, len(*sig)-1; l < r; l, r = l+1, r-1 {
 		(*sig)[l], (*sig)[r] = (*sig)[r], (*sig)[l]
@@ -107,23 +130,43 @@ func (sig *Discrete) AdditiveInverse() {
 	}
 }
 
-// Add performs additive synthesis from the fundamental, a, for the partial harmonic, pth.
-func (sig *Discrete) Add(a Discrete, pth int) {
-	for i := range *sig {
-		j := i * pth % (len(a) - 1)
-		(*sig)[i] += a[j] * (1 / float64(pth))
+// AdditiveSynthesis adds the fundamental, fd, for the partial harmonic, pth, to s.
+func AdditiveSynthesis(s Discrete, fd Discrete, pth int) {
+	for i := range s {
+		j := i * pth % (len(fd) - 1)
+		s[i] += fd[j] * (1 / float64(pth))
 	}
 }
 
+// TODO example potential bike-shedding
+//
+// func Sine(t float64) float64 { return math.Sin(twopi * t) }
+// func SineSampler() Sampler   { return Continuous(Sine) }
+// func SineTable(n int) Discrete {
+//   sig := make(Discrete, n)
+//   SineSampler().Sample(sig, Hertz(n))
+//   return sig
+// }
+//
+// var Sine = Continuous(sine)
+// func sine(t float64) float64 { return math.Sin(twopi * t) }
+// func SineTable(n int) Discrete {
+//   sig := make(Discrete, n)
+//   Sine.Sample(sig, Hertz(n))
+//   return sig
+// }
+
 // SineFunc is the continuous signal of a sine wave.
+// Every integer value of t is one cycle.
 func SineFunc(t float64) float64 {
 	return math.Sin(twopi * t)
 }
 
 // Sine returns a discrete sample of SineFunc.
-func Sine() (sig Discrete) {
-	sig.SampleFunc(SineFunc)
-	return
+func Sine() Discrete {
+	sig := make(Discrete, DefaultBufferLen)
+	Continuous(SineFunc).Sample(sig, Hertz(DefaultBufferLen))
+	return sig
 }
 
 // TriangleFunc is the continuous signal of a triangle wave.
@@ -132,23 +175,25 @@ func TriangleFunc(t float64) float64 {
 }
 
 // Triangle returns a discrete sample of TriangleFunc.
-func Triangle() (sig Discrete) {
-	sig.SampleFunc(TriangleFunc)
-	return
+func Triangle() Discrete {
+	sig := make(Discrete, DefaultBufferLen)
+	Continuous(TriangleFunc).Sample(sig, Hertz(DefaultBufferLen))
+	return sig
 }
 
 // SquareFunc is the continuous signal of a square wave.
 func SquareFunc(t float64) float64 {
-	if math.Signbit(math.Sin(twopi * t)) {
+	if math.Signbit(SineFunc(t)) {
 		return -1
 	}
 	return 1
 }
 
 // Square returns a discrete sample of SquareFunc.
-func Square() (sig Discrete) {
-	sig.SampleFunc(SquareFunc)
-	return
+func Square() Discrete {
+	sig := make(Discrete, DefaultBufferLen)
+	Continuous(SquareFunc).Sample(sig, Hertz(DefaultBufferLen))
+	return sig
 }
 
 // SawtoothFunc is the continuous signal of a sawtooth wave.
@@ -157,9 +202,10 @@ func SawtoothFunc(t float64) float64 {
 }
 
 // Sawtooth returns a discrete sample of SawtoothFunc.
-func Sawtooth() (sig Discrete) {
-	sig.SampleFunc(SawtoothFunc)
-	return
+func Sawtooth() Discrete {
+	sig := make(Discrete, DefaultBufferLen)
+	Continuous(SawtoothFunc).Sample(sig, Hertz(DefaultBufferLen))
+	return sig
 }
 
 // fundamental default used for sinusoidal synthesis.
@@ -169,7 +215,7 @@ var fundamental = Sine()
 func SquareSynthesis(n int) Discrete {
 	sig := Sine()
 	for i := 3; i <= n; i += 2 {
-		sig.Add(fundamental, i)
+		AdditiveSynthesis(sig, fundamental, i)
 	}
 	sig.Normalize()
 	return sig
@@ -180,7 +226,7 @@ func SquareSynthesis(n int) Discrete {
 func SawtoothSynthesis(n int) Discrete {
 	sig := Sine()
 	for i := 2; i <= n; i++ {
-		sig.Add(fundamental, i)
+		AdditiveSynthesis(sig, fundamental, i)
 	}
 	sig.Normalize()
 	return sig
