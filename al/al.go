@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"strings"
 	"time"
 
 	"dasa.cc/snd"
@@ -99,6 +100,12 @@ func CloseDevice() error {
 }
 
 func setSource(in snd.Sound) error {
+
+	// TODO intentionally shoe-horned in
+	if in.Channels() == 1 {
+		in = snd.NewStereoMixer(in)
+	}
+
 	switch in.Channels() {
 	case 1:
 		hwa.format = al.FormatMono16
@@ -108,16 +115,27 @@ func setSource(in snd.Sound) error {
 		return fmt.Errorf("snd/al: can't handle input with channels(%v)", in.Channels())
 	}
 	hwa.in = in
-	hwa.out = make([]byte, in.BufferLen()*2)
+	hwa.out = make([]byte, len(in.Samples())*2)
 
 	s := al.GenSources(1)
 	if code := al.Error(); code != 0 {
 		return fmt.Errorf("snd/al: generate source failed [err=%v]", code)
 	}
+
 	hwa.source = s[0]
 	hwa.buf.src = s[0]
 
-	log.Println("snd/al: software latency", SoftLatency())
+	// openal-soft doesn't spatialize multi-channel sources like mono sources
+	// but it does give each channel an angle where it will be placed in relation
+	// to the listener; stereo sources will have front-left at -30 degrees and
+	// front-right at +30 degrees. AL_DIRECT_CHANNELS_SOFT disables this but is
+	// dependent on the AL_SOFT_direct_channels extension.
+	if strings.Contains(al.Extensions(), "AL_SOFT_direct_channels") {
+		const AL_DIRECT_CHANNELS_SOFT = 0x1033
+		hwa.source.Seti(AL_DIRECT_CHANNELS_SOFT, 1)
+	} else {
+		log.Println("extension AL_SOFT_direct_channels not available")
+	}
 
 	hwa.inputs = snd.GetInputs(in)
 
@@ -131,7 +149,7 @@ func Notify() {
 }
 
 func SoftLatency() time.Duration {
-	nframes := float64(hwa.in.BufferLen() / hwa.in.Channels())
+	nframes := float64(len(hwa.in.Samples()) / hwa.in.Channels())
 	return time.Duration(nframes * float64(hwa.buf.size) / hwa.in.SampleRate() * float64(time.Second))
 }
 
@@ -140,7 +158,9 @@ func Start(in snd.Sound) {
 		panic("snd/al: hwa.quit not nil")
 	}
 	hwa.quit = make(chan struct{})
-	setSource(in)
+	if err := setSource(in); err != nil {
+		panic(err)
+	}
 	go func() {
 		hwa.start = time.Now()
 		Tick()
@@ -200,7 +220,6 @@ func Tick() {
 			hwa.out[2*i] = byte(n)
 			hwa.out[2*i+1] = byte(n >> 8)
 		}
-
 		buf.BufferData(hwa.format, hwa.out, int32(hwa.in.SampleRate()))
 		if code := al.Error(); code != 0 {
 			log.Printf("snd/al: buffer data failed [err=%v]\n", code)

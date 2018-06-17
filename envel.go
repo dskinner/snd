@@ -11,7 +11,7 @@ func ExpDecayFunc(t float64) float64 {
 
 func ExpDecay() Discrete {
 	sig := make(Discrete, 1024)
-	Continuous(ExpDecayFunc).Sample(sig, 1024)
+	Sample(sig, ExpDecayFunc, 1./1024, 0)
 	return sig
 }
 
@@ -27,7 +27,7 @@ func LinearDecayFunc(t float64) float64 {
 
 func LinearDecay() Discrete {
 	sig := make(Discrete, 1024)
-	Continuous(LinearDecayFunc).Sample(sig, 1024)
+	Sample(sig, LinearDecayFunc, 1./1024, 0)
 	return sig
 }
 
@@ -102,7 +102,8 @@ func NewADSR(attack, decay, sustain, release time.Duration, susamp, maxamp float
 	atksig.NormalizeRange(0, maxamp)
 	atk := newtimed(atksig, Dtof(attack, sr))
 
-	dcysig := LinearDecay()
+	// dcysig := LinearDecay()
+	dcysig := ExpDecay()
 	dcysig.NormalizeRange(maxamp, susamp)
 	dcy := newtimed(dcysig, Dtof(decay, sr))
 

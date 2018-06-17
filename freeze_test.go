@@ -35,7 +35,7 @@ func TestRingcopy(t *testing.T) {
 func BenchmarkRingcopy(b *testing.B) {
 	// src := []float64(ExpDecay())
 	src := make(Discrete, 32)
-	Continuous(ExpDecayFunc).Sample(src, 32)
+	src.Sample(ExpDecayFunc, 1./32, 0)
 	dst := make([]float64, 256)
 	r := 0
 	b.ReportAllocs()

@@ -190,7 +190,7 @@ func (lp *Loop) Stop() {
 }
 
 func (lp *Loop) Prepare(tc uint64) {
-	nf := tc * uint64(lp.BufferLen())
+	nf := tc * uint64(len(lp.out))
 	for i := range lp.out {
 		lp.out[i] = 0
 		if !lp.off {

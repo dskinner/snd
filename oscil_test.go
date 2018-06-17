@@ -3,7 +3,8 @@ package snd
 import "testing"
 
 func BenchmarkOscil(b *testing.B) {
-	osc := NewOscil(Sine(), 440, nil)
+	// osc := NewOscil(Sine(), 440, nil)
+	osc := NewOsc(Sine(), 1, 440)
 	// dp := new(Dispatcher)
 	// inps := GetInputs(osc)
 	b.ReportAllocs()

@@ -18,8 +18,8 @@ var (
 	notes    = snd.EqualTempermant(12, 440, 48)
 
 	keys       [12]Key
-	reverb     snd.Sound
-	metronome  snd.Sound
+	reverb     *snd.LowPass
+	metronome  *snd.Mixer
 	loop       *snd.Loop
 	lowpass    *snd.LowPass
 	keymix     *snd.Mixer
@@ -30,7 +30,7 @@ var (
 	bpm     = snd.BPM(80)
 	loopdur = snd.Dtof(bpm.Dur(), snd.DefaultSampleRate) * 8 //nframes
 
-	sndbank    = []KeyFunc{NewPianoKey, NewWobbleKey, NewBeatsKey}
+	sndbank    = []KeyFunc{NewPianoKey, NewWobbleKey, NewBeatsKey, NewReeseKey}
 	sndbankpos = 0
 
 	ms = time.Millisecond
@@ -110,6 +110,44 @@ func (key *WobbleKey) Release() {
 	key.OffIn(400 * ms)
 }
 func (key *WobbleKey) Freeze() {}
+
+type ReeseKey struct {
+	*snd.Instrument
+	adsr *snd.ADSR
+}
+
+func NewReeseKey(idx int) Key {
+	sine := snd.Sawtooth()
+	freq := notes[idx-36]
+	osc0 := snd.NewOscil(sine, freq*math.Pow(2, 30.0/1200), nil)
+	osc0.SetAmp(snd.Decibel(-3).Amp(), nil)
+	osc1 := snd.NewOscil(sine, freq*math.Pow(2, -30.0/1200), nil)
+	osc1.SetAmp(snd.Decibel(-3).Amp(), nil)
+
+	freq = notes[idx-24]
+	osc2 := snd.NewOscil(sine, freq, nil)
+	osc2.SetAmp(snd.Decibel(-6).Amp(), nil)
+	osc3 := snd.NewOscil(sine, freq, nil)
+	osc3.SetAmp(snd.Decibel(-6).Amp(), nil)
+
+	mix := snd.NewMixer(osc0, osc1, osc2, osc3)
+	adsr := snd.NewADSR(1*time.Millisecond, 750*time.Millisecond, 1*time.Millisecond, 2*time.Millisecond, 0.75, 0.8, mix)
+
+	key := &ReeseKey{snd.NewInstrument(adsr), adsr}
+	key.Off()
+	return key
+}
+
+func (key *ReeseKey) Press() {
+	key.adsr.Restart()
+	key.adsr.Sustain()
+	key.On()
+}
+func (key *ReeseKey) Release() {
+	key.adsr.Release()
+	key.OffIn(2 * ms)
+}
+func (key *ReeseKey) Freeze() {}
 
 type PianoKey struct {
 	*snd.Instrument

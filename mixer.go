@@ -24,3 +24,34 @@ func (mix *Mixer) Prepare(uint64) {
 		}
 	}
 }
+
+// TODO don't use this. provides a temporary workaround to spatialization
+// effects openal forces onto mono sources. This is exported for dasa.cc/snd/al
+// to use until a larger refactoring takes place.
+type StereoMixer struct {
+	*stereo
+	*Buf
+}
+
+func NewStereoMixer(in Sound) *StereoMixer {
+	return &StereoMixer{newstereo(in), &Buf{Discrete(in.Samples()), 0}}
+}
+
+func (mix *StereoMixer) Prepare(uint64) {
+	// for i, x := range mix.in.Samples() {
+	for i := 0; i < len(mix.out)/2; i++ {
+		x := mix.Buf.Read()
+		if mix.l.off {
+			mix.l.out[i] = 0
+		} else {
+			mix.l.out[i] = x
+		}
+		if mix.r.off {
+			mix.r.out[i] = 0
+		} else {
+			mix.r.out[i] = x
+		}
+		mix.out[i*2] = mix.l.out[i]
+		mix.out[i*2+1] = mix.r.out[i]
+	}
+}

@@ -27,9 +27,10 @@ func NewFreeze(d time.Duration, in Sound) *Freeze {
 	dp := new(Dispatcher)
 
 	// t := time.Now()
-	for i := 0; i < n; i += in.BufferLen() {
+	buflen := len(in.Samples())
+	for i := 0; i < n; i += buflen {
 		dp.Dispatch(1, inps...)
-		ringcopy(frz.sig[i:i+in.BufferLen()], in.Samples(), 0)
+		ringcopy(frz.sig[i:i+buflen], in.Samples(), 0)
 	}
 	// log.Println("freeze took", time.Now().Sub(t))
 	return frz

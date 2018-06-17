@@ -31,9 +31,9 @@ func NewWaveform(ctx gl.Context, n int, in snd.Sound) (*Waveform, error) {
 
 	wf.outs = make([][]float64, n)
 	for i := range wf.outs {
-		wf.outs[i] = make([]float64, in.BufferLen()*in.Channels())
+		wf.outs[i] = make([]float64, len(in.Samples())*in.Channels())
 	}
-	wf.samples = make([]float64, in.BufferLen()*in.Channels()*n)
+	wf.samples = make([]float64, len(in.Samples())*in.Channels()*n)
 	wf.verts = make([]float32, len(wf.samples)*2)
 
 	wf.prg.CreateAndLink(ctx,

@@ -15,7 +15,8 @@ func newunit() *unit {
 	return u
 }
 
-func (u *unit) Prepare(uint64) {}
+func (u *unit) Prepare(uint64)  {}
+func (u *unit) Inputs() []Sound { return nil }
 
 type zeros struct{ *mono }
 
@@ -30,6 +31,8 @@ func (z *zeros) Prepare(uint64) {
 		}
 	}
 }
+
+func (z *zeros) Inputs() []Sound { return nil }
 
 func BenchmarkZeros(b *testing.B) {
 	z := newzeros()

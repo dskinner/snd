@@ -3,6 +3,7 @@
 package snd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -243,18 +244,18 @@ func TestPlotSampleDown(t *testing.T) {
 	plt := newplttr(1)
 
 	a := make(Discrete, 256)
-	Continuous(SineFunc).Sample(a, 256)
+	a.Sample(SineFunc, 1./256, 0)
 	plt.addDiscrete("Sine SR 256", a)
 
 	b := make(Discrete, 256)
-	Continuous(SineFunc).Sample(b, 128) // * (len(a)/256) == 1
+	b.Sample(SineFunc, 1./128, 0)
 	plt.addDiscrete("Sine SR 128", b)
 
 	c := make(Discrete, 128)
-	a.Sample(c, 64) // * (len(a)/256) == 1
+	c.Sample(a.Interpolate, 1./64, 0) // * (len(a)/256) == 1
 
 	d := make(Discrete, 256)
-	c.Sample(d, 256*(128/64))
+	d.Sample(c.Interpolate, (1./256)*(128/64), 0)
 
 	c = append(c, make(Discrete, 128)...) // pad so plotter doesn't stretch compared to others
 	plt.addDiscrete("Downsample SR 256 -> 64", c)
@@ -269,23 +270,38 @@ func TestPlotVerse(t *testing.T) {
 	plt := newplttr(1)
 
 	a := make(Discrete, 256)
-	Continuous(ExpDecayFunc).Sample(a, 256)
+	a.Sample(ExpDecayFunc, 1./256, 0)
 	plt.addDiscrete("ExpDecay", a)
 
 	b := make(Discrete, 256)
-	a.Sample(b, 256)
+	b.Sample(a.Interpolate, 1./256, 0)
 	b.Reverse()
 	plt.addDiscrete("Reverse", b)
 
 	c := make(Discrete, 256)
-	a.Sample(c, 256)
+	c.Sample(a.Interpolate, 1./256, 0)
 	c.UnitInverse()
 	plt.addDiscrete("UnitInverse", c)
 
 	d := make(Discrete, 256)
-	a.Sample(d, 256)
+	d.Sample(a.Interpolate, 1./256, 0)
 	d.AdditiveInverse()
 	plt.addDiscrete("AdditiveInverse", d)
+
+	e := make(Discrete, 256)
+	copy(e, c)
+	f := make(Discrete, 256)
+	copy(f, b)
+	for i, x := range f {
+		f[i] = 1 + x
+	}
+	e = append(e, f...)
+	e.Normalize()
+
+	g := make(Discrete, 256)
+	g.Sample(e.Interpolate, 1./256, 0)
+	fmt.Printf("%#v\n", g)
+	plt.addDiscrete("Ease", g)
 
 	if err := plt.save("verse.png"); err != nil {
 		t.Fatal(err)
