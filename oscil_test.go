@@ -3,15 +3,11 @@ package snd
 import "testing"
 
 func BenchmarkOscil(b *testing.B) {
-	// osc := NewOscil(Sine(), 440, nil)
-	osc := NewOsc(Sine(), 1, 440)
-	// dp := new(Dispatcher)
-	// inps := GetInputs(osc)
+	osc := NewOscil(Sine(), 440, nil)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		osc.Prepare(uint64(n))
-		// dp.Dispatch(uint64(n), inps...)
 	}
 }
 
@@ -57,12 +53,10 @@ func BenchmarkOscilAll(b *testing.B) {
 	osc := NewOscil(Sine(), 440, NewOscil(Sine(), 2, nil))
 	osc.SetAmp(1, NewOscil(Sine(), 2, nil))
 	osc.SetPhase(NewOscil(Sine(), 2, nil))
-	// dp := new(Dispatcher)
 	inps := GetInputs(osc)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		// dp.Dispatch(uint64(n), inps...)
 		for _, inp := range inps {
 			inp.sd.Prepare(uint64(n))
 		}

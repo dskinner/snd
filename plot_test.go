@@ -9,15 +9,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gonum/plot"
-	"github.com/gonum/plot/plotter"
-	"github.com/gonum/plot/plotutil"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/plotutil"
 )
 
 type plttr struct {
 	*plot.Plot
 	nproc  int
 	nlines int
+
+	tc uint64
 }
 
 func newplttr(nproc int) *plttr {
@@ -36,7 +38,7 @@ func (plt *plttr) add(name string, sd Sound) {
 	dp := new(Dispatcher)
 	var out []float64
 	for i := 1; i <= plt.nproc; i++ {
-		dp.Dispatch(uint64(i), inps...)
+		dp.Dispatch(plt.tc+uint64(i), inps...)
 		out = append(out, sd.Samples()...)
 	}
 
@@ -89,15 +91,14 @@ func TestPlotOscil(t *testing.T) {
 	}{
 		// {"Sine", Sine},
 		// {"Square", Square},
-		// {"Triangle", Triangle},
-		// {"Sawtooth", Sawtooth},
+		{"Triangle", Triangle},
+		{"Sawtooth", Sawtooth},
 		{"Square Sinusoidal", func() Discrete { return SquareSynthesis(pth) }},
-		{"Sawtooth Sinusoidal", func() Discrete { return SawtoothSynthesis(pth) }},
+		// {"Sawtooth Sinusoidal", func() Discrete { return SawtoothSynthesis(pth) }},
 	}
 
 	for _, d := range td {
 		osc := NewOscil(d.fn(), freq, nil)
-		osc.SetAmp(1, nil)
 		plt.add(d.name, osc)
 	}
 
@@ -112,15 +113,38 @@ func TestPlotPhaser(t *testing.T) {
 	square := Square()
 
 	osc0 := NewOscil(sawtooth, 440, nil)
-	osc0.SetAmp(1, nil)
 	plt.add("oscil", osc0)
 
 	osc1 := NewOscil(sawtooth, 440, nil)
 	osc1.SetPhase(NewOscil(square, 440*0.4275, nil))
-	osc1.SetAmp(1, nil)
 	plt.add("phased", osc1)
 
 	if err := plt.save("phaser.png"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPlotPhaser2(t *testing.T) {
+	plt := newplttr(16)
+	plt.tc = 0
+
+	sine := Sine()
+
+	tri := make(Discrete, 1024)
+	tri.Sample(TriangleFunc, 1./1024, 1./8)
+	mod := NewOscil(tri, 2, nil)
+	plt.add("mod", mod)
+
+	osc := NewOscil(sine, 440, nil)
+	// plt.add("osc", osc)
+
+	allpass := NewOscil(sine, 440, nil)
+	allpass.SetPhase(mod)
+	// plt.add("allpass", allpass)
+
+	plt.add("phs", NewGain(0.5, NewMixer(allpass, osc)))
+
+	if err := plt.save("phaser2.png"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -206,7 +230,7 @@ func TestPlotNorm(t *testing.T) {
 
 	sq0 := Sine()
 	for i := 3; i <= 99; i += 2 {
-		AdditiveSynthesis(sq0, fundamental, i)
+		sq0.AdditiveSynthesis(fundamental, i)
 	}
 	sq1 := make(Discrete, len(sq0))
 	copy(sq1, sq0)
@@ -252,10 +276,10 @@ func TestPlotSampleDown(t *testing.T) {
 	plt.addDiscrete("Sine SR 128", b)
 
 	c := make(Discrete, 128)
-	c.Sample(a.Interpolate, 1./64, 0) // * (len(a)/256) == 1
+	c.Sample(a.Interp, 1./64, 0) // * (len(a)/256) == 1
 
 	d := make(Discrete, 256)
-	d.Sample(c.Interpolate, (1./256)*(128/64), 0)
+	d.Sample(c.Interp, (1./256)*(128/64), 0)
 
 	c = append(c, make(Discrete, 128)...) // pad so plotter doesn't stretch compared to others
 	plt.addDiscrete("Downsample SR 256 -> 64", c)
@@ -274,17 +298,17 @@ func TestPlotVerse(t *testing.T) {
 	plt.addDiscrete("ExpDecay", a)
 
 	b := make(Discrete, 256)
-	b.Sample(a.Interpolate, 1./256, 0)
+	b.Sample(a.Interp, 1./256, 0)
 	b.Reverse()
 	plt.addDiscrete("Reverse", b)
 
 	c := make(Discrete, 256)
-	c.Sample(a.Interpolate, 1./256, 0)
+	c.Sample(a.Interp, 1./256, 0)
 	c.UnitInverse()
 	plt.addDiscrete("UnitInverse", c)
 
 	d := make(Discrete, 256)
-	d.Sample(a.Interpolate, 1./256, 0)
+	d.Sample(a.Interp, 1./256, 0)
 	d.AdditiveInverse()
 	plt.addDiscrete("AdditiveInverse", d)
 
@@ -299,7 +323,7 @@ func TestPlotVerse(t *testing.T) {
 	e.Normalize()
 
 	g := make(Discrete, 256)
-	g.Sample(e.Interpolate, 1./256, 0)
+	g.Sample(e.Interp, 1./256, 0)
 	fmt.Printf("%#v\n", g)
 	plt.addDiscrete("Ease", g)
 

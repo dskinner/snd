@@ -25,7 +25,7 @@ func (nst *Instrument) Prepare(uint64) {
 		if nst.off {
 			nst.out[i] = 0
 		} else {
-			nst.out[i] = nst.in.Sample(i)
+			nst.out[i] = nst.in.Index(i)
 		}
 
 		if nst.tm > 0 {

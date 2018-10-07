@@ -100,12 +100,6 @@ func CloseDevice() error {
 }
 
 func setSource(in snd.Sound) error {
-
-	// TODO intentionally shoe-horned in
-	if in.Channels() == 1 {
-		in = snd.NewStereoMixer(in)
-	}
-
 	switch in.Channels() {
 	case 1:
 		hwa.format = al.FormatMono16

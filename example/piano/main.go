@@ -165,7 +165,7 @@ func onStart(ctx gl.Context) {
 	keymix = snd.NewMixer()
 	go makekeys()
 	lowpass = snd.NewLowPass(773, keymix)
-	keygain = snd.NewGain(snd.Decibel(-3).Amp(), lowpass)
+	keygain = snd.NewGain(snd.Decibel(-9).Amp(), lowpass)
 
 	dly := snd.NewDelay(29*time.Millisecond, keygain)
 	tap0 := snd.NewTap(19*time.Millisecond, dly)

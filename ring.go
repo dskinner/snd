@@ -19,7 +19,7 @@ func (ng *Ring) Prepare(uint64) {
 		if ng.off {
 			ng.out[i] = 0
 		} else {
-			ng.out[i] = ng.in0.Sample(i) * ng.in1.Sample(i)
+			ng.out[i] = ng.in0.Index(i) * ng.in1.Index(i)
 		}
 	}
 }

@@ -71,7 +71,7 @@ func (dly *Delay) Prepare(uint64) {
 			dly.out[i] = 0
 		} else {
 			dly.out[i] = dly.line.read()
-			dly.line.write(dly.in.Sample(i))
+			dly.line.write(dly.in.Index(i))
 		}
 	}
 }
@@ -132,7 +132,7 @@ func (cmb *Comb) Prepare(uint64) {
 			cmb.out[i] = 0
 		} else {
 			cmb.out[i] = cmb.line.read()
-			cmb.line.write(cmb.in.Sample(i) + cmb.out[i]*cmb.gain)
+			cmb.line.write(cmb.in.Index(i) + cmb.out[i]*cmb.gain)
 		}
 	}
 }
@@ -208,7 +208,7 @@ func (lp *Loop) Prepare(tc uint64) {
 			}
 
 			if lp.rec {
-				if done := lp.line.write(lp.in.Sample(i)); done {
+				if done := lp.line.write(lp.in.Index(i)); done {
 					// lp.rec = false
 					// lp.line.r = 0
 					lp.Stop()

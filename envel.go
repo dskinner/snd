@@ -11,7 +11,7 @@ func ExpDecayFunc(t float64) float64 {
 
 func ExpDecay() Discrete {
 	sig := make(Discrete, 1024)
-	Sample(sig, ExpDecayFunc, 1./1024, 0)
+	sig.Sample(ExpDecayFunc, 1./1024, 0)
 	return sig
 }
 
@@ -27,7 +27,7 @@ func LinearDecayFunc(t float64) float64 {
 
 func LinearDecay() Discrete {
 	sig := make(Discrete, 1024)
-	Sample(sig, LinearDecayFunc, 1./1024, 0)
+	sig.Sample(LinearDecayFunc, 1./1024, 0)
 	return sig
 }
 
@@ -67,9 +67,9 @@ func (sq *seq) Prepare(uint64) {
 		if sq.off {
 			sq.out[i] = 0
 		} else if sq.in == nil {
-			sq.out[i] = tm.sig.Index(sq.pn / tm.nfr)
+			sq.out[i] = tm.sig.At(sq.pn / tm.nfr)
 		} else {
-			sq.out[i] = tm.sig.Index(sq.pn/tm.nfr) * sq.in.Sample(i)
+			sq.out[i] = tm.sig.At(sq.pn/tm.nfr) * sq.in.Index(i)
 		}
 
 		// TODO finicky
@@ -164,9 +164,9 @@ func (dmp *Damp) Prepare(uint64) {
 		if dmp.off {
 			dmp.out[i] = 0
 		} else if dmp.in == nil {
-			dmp.out[i] = dmp.sig.Index(dmp.i / dmp.n)
+			dmp.out[i] = dmp.sig.At(dmp.i / dmp.n)
 		} else {
-			dmp.out[i] = dmp.in.Sample(i) * dmp.sig.Index(dmp.i/dmp.n)
+			dmp.out[i] = dmp.in.Index(i) * dmp.sig.At(dmp.i/dmp.n)
 		}
 		dmp.i++
 		if dmp.i == dmp.n {
@@ -195,9 +195,9 @@ func (drv *Drive) Prepare(uint64) {
 		if drv.off {
 			drv.out[i] = 0
 		} else if drv.in == nil {
-			drv.out[i] = drv.sig.Index(drv.i / drv.n)
+			drv.out[i] = drv.sig.At(drv.i / drv.n)
 		} else {
-			drv.out[i] = drv.in.Sample(i) * drv.sig.Index(drv.i/drv.n)
+			drv.out[i] = drv.in.Index(i) * drv.sig.At(drv.i/drv.n)
 		}
 		drv.i++
 		if drv.i == drv.n {

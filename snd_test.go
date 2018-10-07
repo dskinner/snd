@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+const epsilon = 0.0001
+
+func equals(a, b float64) bool {
+	return equaleps(a, b, epsilon)
+}
+
+func equaleps(a, b float64, eps float64) bool {
+	return (a-b) < eps && (b-a) < eps
+}
+
 type unit struct{ *mono }
 
 func newunit() *unit {

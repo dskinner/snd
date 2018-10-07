@@ -82,16 +82,6 @@ const (
 	DefaultAmpFac         float64 = 0.31622776601683794 // -10dB
 )
 
-const epsilon = 0.0001
-
-func equals(a, b float64) bool {
-	return equaleps(a, b, epsilon)
-}
-
-func equaleps(a, b float64, eps float64) bool {
-	return (a-b) < eps && (b-a) < eps
-}
-
 // Decibel is relative to full scale; anything over 0dB will clip.
 type Decibel float64
 
@@ -166,22 +156,17 @@ type Sound interface {
 	// TODO rename to Data()? So, Buffer.Data()
 	Samples() Discrete
 
-	// TODO delete this
-	// Sample returns the sample at pos mod BufferLen().
-	Sample(pos int) float64
+	Interp(t float64) float64
+
+	At(t float64) float64
+
+	Index(i int) float64
 }
 
-// TODO everything is a buffer if it has an `out Discrete` and tracks phase of input!? size of input doesn't matter
-type stub struct{}
-
-func (sd stub) Sample(i int) float64 { return 0 }
-func (sd stub) IsOff() bool          { return false }
-func (sd stub) Off()                 {}
-func (sd stub) On()                  {}
-func (sd stub) Inputs() []Sound      { return nil }
+// TODO everything is a buffer if it has an `out Discrete` and tracks phase of input; size of input doesn't matter
 
 // TODO rename as buffer?
-// TODO see work on System type in signal.go
+// TODO see work on System type
 type mono struct {
 	sr  float64
 	in  Sound
@@ -197,14 +182,16 @@ func newmono(in Sound) *mono {
 	}
 }
 
-func (sd *mono) SampleRate() float64  { return sd.sr }
-func (sd *mono) Samples() Discrete    { return sd.out }
-func (sd *mono) Sample(i int) float64 { return sd.out[i&(len(sd.out)-1)] }
-func (sd *mono) Channels() int        { return 1 }
-func (sd *mono) IsOff() bool          { return sd.off }
-func (sd *mono) Off()                 { sd.off = true }
-func (sd *mono) On()                  { sd.off = false }
-func (sd *mono) Inputs() []Sound      { return []Sound{sd.in} }
+func (sd *mono) SampleRate() float64      { return sd.sr }
+func (sd *mono) Samples() Discrete        { return sd.out }
+func (sd *mono) Index(i int) float64      { return sd.out.Index(i) }
+func (sd *mono) At(t float64) float64     { return sd.out.At(t) }
+func (sd *mono) Interp(t float64) float64 { return sd.out.Interp(t) }
+func (sd *mono) Channels() int            { return 1 }
+func (sd *mono) IsOff() bool              { return sd.off }
+func (sd *mono) Off()                     { sd.off = true }
+func (sd *mono) On()                      { sd.off = false }
+func (sd *mono) Inputs() []Sound          { return []Sound{sd.in} }
 
 type stereo struct {
 	l, r *mono
@@ -222,11 +209,13 @@ func newstereo(in Sound) *stereo {
 	}
 }
 
-func (sd *stereo) SampleRate() float64  { return sd.l.sr }
-func (sd *stereo) Samples() Discrete    { return sd.out }
-func (sd *stereo) Sample(i int) float64 { return sd.out[i&(len(sd.out)-1)] }
-func (sd *stereo) Channels() int        { return 2 }
-func (sd *stereo) IsOff() bool          { return sd.l.off || sd.r.off }
-func (sd *stereo) Off()                 { sd.l.off, sd.r.off = false, false }
-func (sd *stereo) On()                  { sd.l.off, sd.r.off = true, true }
-func (sd *stereo) Inputs() []Sound      { return []Sound{sd.in} }
+func (sd *stereo) SampleRate() float64      { return sd.l.sr }
+func (sd *stereo) Samples() Discrete        { return sd.out }
+func (sd *stereo) Index(i int) float64      { return sd.out.Index(i) }
+func (sd *stereo) At(t float64) float64     { return sd.out.At(t) }
+func (sd *stereo) Interp(t float64) float64 { return sd.out.Interp(t) }
+func (sd *stereo) Channels() int            { return 2 }
+func (sd *stereo) IsOff() bool              { return sd.l.off || sd.r.off }
+func (sd *stereo) Off()                     { sd.l.off, sd.r.off = false, false }
+func (sd *stereo) On()                      { sd.l.off, sd.r.off = true, true }
+func (sd *stereo) Inputs() []Sound          { return []Sound{sd.in} }
