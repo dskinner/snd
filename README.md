@@ -6,6 +6,17 @@ Package snd provides methods and types for sound processing and synthesis.
 go get dasa.cc/snd
 ```
 
+## Windows
+
+Tested with msys2. Additional setup required due to how gomobile currently links to openal on windows. This should go away in the future stepping away from gomobile's exp/al package.
+
+```
+pacman -S mingw-w64-x86_64-openal
+cd /mingw64/lib
+cp libopenal.a libOpenAL32.a
+cp libopenal.dll.a libOpenAL32.dll.a
+```
+
 ## Tests
 
 In addition to regular unit tests, there are plot tests that produce images
