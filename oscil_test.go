@@ -1,9 +1,13 @@
 package snd
 
-import "testing"
+import (
+	"testing"
+
+	"dasa.cc/signal"
+)
 
 func BenchmarkOscil(b *testing.B) {
-	osc := NewOscil(Sine(), 440, nil)
+	osc := NewOscil(signal.Sine(), 440, nil)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -12,7 +16,7 @@ func BenchmarkOscil(b *testing.B) {
 }
 
 func BenchmarkOscilMod(b *testing.B) {
-	osc := NewOscil(Sine(), 440, NewOscil(Sine(), 2, nil))
+	osc := NewOscil(signal.Sine(), 440, NewOscil(signal.Sine(), 2, nil))
 	inps := GetInputs(osc)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -24,8 +28,8 @@ func BenchmarkOscilMod(b *testing.B) {
 }
 
 func BenchmarkOscilAmp(b *testing.B) {
-	osc := NewOscil(Sine(), 440, nil)
-	osc.SetAmp(1, NewOscil(Sine(), 2, nil))
+	osc := NewOscil(signal.Sine(), 440, nil)
+	osc.SetAmp(1, NewOscil(signal.Sine(), 2, nil))
 	inps := GetInputs(osc)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -37,8 +41,8 @@ func BenchmarkOscilAmp(b *testing.B) {
 }
 
 func BenchmarkOscilPhase(b *testing.B) {
-	osc := NewOscil(Sine(), 440, nil)
-	osc.SetPhase(NewOscil(Sine(), 2, nil))
+	osc := NewOscil(signal.Sine(), 440, nil)
+	osc.SetPhase(NewOscil(signal.Sine(), 2, nil))
 	inps := GetInputs(osc)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -50,9 +54,9 @@ func BenchmarkOscilPhase(b *testing.B) {
 }
 
 func BenchmarkOscilAll(b *testing.B) {
-	osc := NewOscil(Sine(), 440, NewOscil(Sine(), 2, nil))
-	osc.SetAmp(1, NewOscil(Sine(), 2, nil))
-	osc.SetPhase(NewOscil(Sine(), 2, nil))
+	osc := NewOscil(signal.Sine(), 440, NewOscil(signal.Sine(), 2, nil))
+	osc.SetAmp(1, NewOscil(signal.Sine(), 2, nil))
+	osc.SetPhase(NewOscil(signal.Sine(), 2, nil))
 	inps := GetInputs(osc)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -64,8 +68,8 @@ func BenchmarkOscilAll(b *testing.B) {
 }
 
 func BenchmarkOscilReuse(b *testing.B) {
-	mod := NewOscil(Sine(), 2, nil)
-	osc := NewOscil(Sine(), 440, mod)
+	mod := NewOscil(signal.Sine(), 2, nil)
+	osc := NewOscil(signal.Sine(), 440, mod)
 	osc.SetAmp(1, mod)
 	osc.SetPhase(mod)
 	inps := GetInputs(osc)

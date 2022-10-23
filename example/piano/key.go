@@ -4,17 +4,18 @@ import (
 	"math"
 	"time"
 
+	"dasa.cc/signal"
 	"dasa.cc/snd"
 	"dasa.cc/snd/al"
 )
 
 var (
-	sawtooth = snd.Sawtooth()
-	sawsine  = snd.SawtoothSynthesis(8)
-	square   = snd.Square()
-	sqsine   = snd.SquareSynthesis(49)
-	sine     = snd.Sine()
-	triangle = snd.Triangle()
+	sawtooth = signal.Sawtooth()
+	sawsine  = signal.SawtoothSynthesis(8)
+	square   = signal.Square()
+	sqsine   = signal.SquareSynthesis(49)
+	sine     = signal.Sine()
+	triangle = signal.Triangle()
 	notes    = snd.EqualTempermant(12, 440, 48)
 
 	keys       [12]Key
@@ -117,7 +118,7 @@ type ReeseKey struct {
 }
 
 func NewReeseKey(idx int) Key {
-	sine := snd.Sawtooth()
+	sine := signal.Sawtooth()
 	freq := notes[idx-36]
 	osc0 := snd.NewOscil(sine, freq*math.Pow(2, 30.0/1200), nil)
 	osc0.SetAmp(snd.Decibel(-3).Amp(), nil)

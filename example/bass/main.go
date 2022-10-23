@@ -5,6 +5,7 @@ import (
 	"math"
 	"time"
 
+	"dasa.cc/signal"
 	"dasa.cc/snd"
 	"dasa.cc/snd/al"
 )
@@ -27,7 +28,7 @@ func main() {
 	}
 	al.Start(master)
 
-	sine := snd.Sawtooth()
+	sine := signal.Sawtooth()
 
 	freq0 = notes[15] * math.Pow(2, 30.0/1200)
 	freq2 = notes[15] * math.Pow(2, -30.0/1200)

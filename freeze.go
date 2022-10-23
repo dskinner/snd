@@ -3,11 +3,13 @@ package snd
 import (
 	"math"
 	"time"
+
+	"dasa.cc/signal"
 )
 
 type Freeze struct {
 	*mono
-	sig, prv Discrete
+	sig, prv signal.Discrete
 	r        int
 }
 
@@ -20,7 +22,7 @@ func NewFreeze(d time.Duration, in Sound) *Freeze {
 		n = int(math.Ldexp(1, e))
 	}
 
-	frz := &Freeze{mono: newmono(nil), prv: make(Discrete, n)}
+	frz := &Freeze{mono: newmono(nil), prv: make(signal.Discrete, n)}
 	frz.sig = frz.prv[:f]
 
 	inps := GetInputs(in)

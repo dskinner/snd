@@ -1,49 +1,30 @@
 package snd
 
 import (
-	"math"
 	"time"
+
+	"dasa.cc/signal"
 )
 
-func ExpDecayFunc(t float64) float64 {
-	return math.Exp(twopi * -t)
-}
-
-func ExpDecay() Discrete {
-	sig := make(Discrete, 1024)
-	sig.Sample(ExpDecayFunc, 1./1024, 0)
-	return sig
-}
-
-func ExpDrive() Discrete {
-	sig := ExpDecay()
+func ExpDrive() signal.Discrete {
+	sig := signal.ExpDecay()
 	sig.Reverse()
 	return sig
 }
 
-func LinearDecayFunc(t float64) float64 {
-	return 1 - t
-}
-
-func LinearDecay() Discrete {
-	sig := make(Discrete, 1024)
-	sig.Sample(LinearDecayFunc, 1./1024, 0)
-	return sig
-}
-
-func LinearDrive() Discrete {
-	sig := LinearDecay()
-	sig.Reverse()
+func LinearDrive() signal.Discrete {
+	sig := make(signal.Discrete, 1024)
+	sig.Sample(func(t float64) float64 { return t }, 1./1024, 0)
 	return sig
 }
 
 // TODO rename ...
 type timed struct {
-	sig Discrete
+	sig signal.Discrete
 	nfr float64
 }
 
-func newtimed(sig Discrete, nfr int) *timed {
+func newtimed(sig signal.Discrete, nfr int) *timed {
 	return &timed{sig, float64(nfr)}
 }
 
@@ -103,13 +84,13 @@ func NewADSR(attack, decay, sustain, release time.Duration, susamp, maxamp float
 	atk := newtimed(atksig, Dtof(attack, sr))
 
 	// dcysig := LinearDecay()
-	dcysig := ExpDecay()
+	dcysig := signal.ExpDecay()
 	dcysig.NormalizeRange(maxamp, susamp)
 	dcy := newtimed(dcysig, Dtof(decay, sr))
 
-	sus := newtimed(Discrete{susamp, susamp}, Dtof(sustain, sr))
+	sus := newtimed(signal.Discrete{susamp, susamp}, Dtof(sustain, sr))
 
-	relsig := ExpDecay()
+	relsig := signal.ExpDecay()
 	relsig.NormalizeRange(susamp, 0)
 	rel := newtimed(relsig, Dtof(release, sr))
 
@@ -146,7 +127,7 @@ func (adsr *ADSR) Release() (ok bool) {
 
 type Damp struct {
 	*mono
-	sig  Discrete
+	sig  signal.Discrete
 	i, n float64
 }
 
@@ -154,7 +135,7 @@ func NewDamp(d time.Duration, in Sound) *Damp {
 	sd := newmono(in)
 	return &Damp{
 		mono: sd,
-		sig:  ExpDecay(),
+		sig:  signal.ExpDecay(),
 		n:    float64(Dtof(d, sd.SampleRate())),
 	}
 }
@@ -177,7 +158,7 @@ func (dmp *Damp) Prepare(uint64) {
 
 type Drive struct {
 	*mono
-	sig  Discrete
+	sig  signal.Discrete
 	i, n float64
 }
 

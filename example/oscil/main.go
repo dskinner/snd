@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"dasa.cc/signal"
 	"dasa.cc/snd"
 	"dasa.cc/snd/al"
 )
@@ -16,7 +17,7 @@ func main() {
 	}
 	al.Start(master)
 
-	sine := snd.Sine()
+	sine := signal.Sine()
 	// // mod is a modulator; try replacing the nil argument to the oscillator with this.
 	// // mod := snd.NewOscil(sine, 2, nil)
 	osc := snd.NewOscil(sine, 440, nil) // oscillator

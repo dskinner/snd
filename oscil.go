@@ -1,10 +1,14 @@
 package snd
 
+import (
+	"dasa.cc/signal"
+)
+
 // TODO consider functional options
 
 type Oscil struct {
 	*mono
-	in Discrete
+	in signal.Discrete
 
 	amp   float64
 	freq  float64
@@ -15,7 +19,7 @@ type Oscil struct {
 	phasemod Sound
 }
 
-func NewOscil(in Discrete, freq float64, freqmod Sound) *Oscil {
+func NewOscil(in signal.Discrete, freq float64, freqmod Sound) *Oscil {
 	return &Oscil{
 		mono:    newmono(nil),
 		in:      in,

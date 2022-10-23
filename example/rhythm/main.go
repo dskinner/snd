@@ -4,14 +4,15 @@ import (
 	"log"
 	"time"
 
+	"dasa.cc/signal"
 	"dasa.cc/snd"
 	"dasa.cc/snd/al"
 )
 
 var (
 	notes    = snd.EqualTempermant(12, 440, 48)
-	sawsine  = snd.SawtoothSynthesis(8)
-	triangle = snd.Triangle()
+	sawsine  = signal.SawtoothSynthesis(8)
+	triangle = signal.Triangle()
 	bpm      = snd.BPM(80)
 )
 

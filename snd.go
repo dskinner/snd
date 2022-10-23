@@ -57,6 +57,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"dasa.cc/signal"
 )
 
 // TODO double check benchmarks, results may be incorrect due to new dispatcher scheme
@@ -80,6 +82,8 @@ const (
 	DefaultSampleBitDepth         = 16 // TODO not currently used for anything
 	DefaultBufferLen              = 256
 	DefaultAmpFac         float64 = 0.31622776601683794 // -10dB
+
+	twopi = 2*math.Pi
 )
 
 // Decibel is relative to full scale; anything over 0dB will clip.
@@ -154,7 +158,7 @@ type Sound interface {
 	// with an input's output but a slice exposes that. Or, discourage
 	// use by making a copy of data.
 	// TODO rename to Data()? So, Buffer.Data()
-	Samples() Discrete
+	Samples() signal.Discrete
 
 	Interp(t float64) float64
 
@@ -170,7 +174,7 @@ type Sound interface {
 type mono struct {
 	sr  float64
 	in  Sound
-	out Discrete
+	out signal.Discrete
 	off bool
 }
 
@@ -178,12 +182,12 @@ func newmono(in Sound) *mono {
 	return &mono{
 		sr:  DefaultSampleRate,
 		in:  in,
-		out: make(Discrete, DefaultBufferLen),
+		out: make(signal.Discrete, DefaultBufferLen),
 	}
 }
 
 func (sd *mono) SampleRate() float64      { return sd.sr }
-func (sd *mono) Samples() Discrete        { return sd.out }
+func (sd *mono) Samples() signal.Discrete        { return sd.out }
 func (sd *mono) Index(i int) float64      { return sd.out.Index(i) }
 func (sd *mono) At(t float64) float64     { return sd.out.At(t) }
 func (sd *mono) Interp(t float64) float64 { return sd.out.Interp(t) }
@@ -196,7 +200,7 @@ func (sd *mono) Inputs() []Sound          { return []Sound{sd.in} }
 type stereo struct {
 	l, r *mono
 	in   Sound
-	out  Discrete
+	out  signal.Discrete
 	tc   uint64
 }
 
@@ -205,12 +209,12 @@ func newstereo(in Sound) *stereo {
 		l:   newmono(nil),
 		r:   newmono(nil),
 		in:  in,
-		out: make(Discrete, DefaultBufferLen*2),
+		out: make(signal.Discrete, DefaultBufferLen*2),
 	}
 }
 
 func (sd *stereo) SampleRate() float64      { return sd.l.sr }
-func (sd *stereo) Samples() Discrete        { return sd.out }
+func (sd *stereo) Samples() signal.Discrete        { return sd.out }
 func (sd *stereo) Index(i int) float64      { return sd.out.Index(i) }
 func (sd *stereo) At(t float64) float64     { return sd.out.At(t) }
 func (sd *stereo) Interp(t float64) float64 { return sd.out.Interp(t) }

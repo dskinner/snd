@@ -4,6 +4,7 @@ import (
 	"log"
 	"time"
 
+	"dasa.cc/signal"
 	"dasa.cc/snd"
 	"dasa.cc/snd/al"
 )
@@ -36,11 +37,11 @@ func main() {
 
 	// osc := snd.NewOscil(src, 1/t, nil)
 
-	tri := make(snd.Discrete, 1024)
-	tri.Sample(snd.TriangleFunc, 1./1024, 1./8)
+	tri := make(signal.Discrete, 1024)
+	tri.Sample(signal.TriangleFunc, 1./1024, 1./8)
 	mod := snd.NewOscil(tri, 0.25, nil)
 
-	sine := snd.Sine()
+	sine := signal.Sine()
 	osc := snd.NewOscil(sine, 440, nil)
 	allpass := snd.NewOscil(sine, 440, nil)
 	allpass.SetPhase(mod)

@@ -3,6 +3,8 @@ package snd
 import (
 	"testing"
 	"time"
+
+	"dasa.cc/signal"
 )
 
 const epsilon = 0.0001
@@ -57,8 +59,8 @@ func BenchmarkZeros(b *testing.B) {
 func mksound() Sound {
 	mix := NewMixer()
 	for i := 0; i < 12; i++ {
-		oscil := NewOscil(Sawtooth(), 440, NewOscil(Sine(), 2, nil))
-		oscil.SetPhase(NewOscil(Square(), 200, nil))
+		oscil := NewOscil(signal.Sawtooth(), 440, NewOscil(signal.Sine(), 2, nil))
+		oscil.SetPhase(NewOscil(signal.Square(), 200, nil))
 
 		comb := NewComb(0.8, 10*time.Millisecond, oscil)
 		adsr := NewADSR(50*time.Millisecond, 500*time.Millisecond, 100*time.Millisecond, 350*time.Millisecond, 0.4, 1, comb)

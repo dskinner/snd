@@ -7,6 +7,7 @@ import (
 	"plugin"
 	"time"
 
+	"dasa.cc/signal"
 	"dasa.cc/snd"
 	"dasa.cc/snd/al"
 )
@@ -38,8 +39,8 @@ func main() {
 	al.Start(gain)
 
 	dur := snd.BPM(80).Dur()
-	mod := snd.NewOscil(snd.Square(), 40, nil)
-	osc := snd.NewOscil(snd.Sine(), 440, mod)
+	mod := snd.NewOscil(signal.Square(), 40, nil)
+	osc := snd.NewOscil(signal.Sine(), 440, mod)
 	dmp := snd.NewDamp(dur, osc)
 
 	loop := snd.NewLoop(dur, dmp)
