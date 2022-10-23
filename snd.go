@@ -4,16 +4,16 @@
 // dispatching of sound synthesis via golang.org/x/mobile/audio/al. Start
 // the dispatcher as follows:
 //
-//  const buffers = 1
-//  if err := al.OpenDevice(buffers); err != nil {
-//      log.Fatal(err)
-//  }
-//  al.Start()
+//	const buffers = 1
+//	if err := al.OpenDevice(buffers); err != nil {
+//	    log.Fatal(err)
+//	}
+//	al.Start()
 //
 // Once running, add a source for sound synthesis. For example:
 //
-//  osc := snd.NewOscil(snd.Sine(), 440, nil)
-//  al.AddSource(osc)
+//	osc := snd.NewOscil(snd.Sine(), 440, nil)
+//	al.AddSource(osc)
 //
 // This results in a 440Hz tone being played back through the audio hardware.
 //
@@ -21,14 +21,14 @@
 // methods accept a Sound argument that can affect sampling. For example, one
 // may modulate an oscillator by passing in a third argument to NewOscil.
 //
-//  sine := snd.Sine()
-//  mod := snd.NewOscil(sine, 2, nil)
-//  osc := snd.NewOscil(sine, 440, mod)
+//	sine := snd.Sine()
+//	mod := snd.NewOscil(sine, 2, nil)
+//	osc := snd.NewOscil(sine, 440, mod)
 //
 // The above results in a lower frequency sound that may require decent speakers
 // to hear properly.
 //
-// Signals
+// # Signals
 //
 // Note the sine argument in the previous example. There are two conceptual types
 // of sounds, ContinuousFunc and Discrete. ContinuousFunc represents an indefinite
@@ -45,7 +45,7 @@
 // such as SquareSynthesis(int) to return an approximation of a square signal
 // based on a sinusoidal.
 //
-// Time Approximation
+// # Time Approximation
 //
 // Functions that take a time.Duration argument approximate the value to the
 // closest number of frames. For example, if sample rate is 44.1kHz and duration
@@ -83,7 +83,7 @@ const (
 	DefaultBufferLen              = 256
 	DefaultAmpFac         float64 = 0.31622776601683794 // -10dB
 
-	twopi = 2*math.Pi
+	twopi = 2 * math.Pi
 )
 
 // Decibel is relative to full scale; anything over 0dB will clip.
@@ -187,7 +187,7 @@ func newmono(in Sound) *mono {
 }
 
 func (sd *mono) SampleRate() float64      { return sd.sr }
-func (sd *mono) Samples() signal.Discrete        { return sd.out }
+func (sd *mono) Samples() signal.Discrete { return sd.out }
 func (sd *mono) Index(i int) float64      { return sd.out.Index(i) }
 func (sd *mono) At(t float64) float64     { return sd.out.At(t) }
 func (sd *mono) Interp(t float64) float64 { return sd.out.Interp(t) }
@@ -214,7 +214,7 @@ func newstereo(in Sound) *stereo {
 }
 
 func (sd *stereo) SampleRate() float64      { return sd.l.sr }
-func (sd *stereo) Samples() signal.Discrete        { return sd.out }
+func (sd *stereo) Samples() signal.Discrete { return sd.out }
 func (sd *stereo) Index(i int) float64      { return sd.out.Index(i) }
 func (sd *stereo) At(t float64) float64     { return sd.out.At(t) }
 func (sd *stereo) Interp(t float64) float64 { return sd.out.Interp(t) }

@@ -1,3 +1,4 @@
+//go:build plot
 // +build plot
 
 package snd
