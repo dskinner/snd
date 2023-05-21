@@ -78,8 +78,8 @@ import (
 // http://music.columbia.edu/cmc/MusicAndComputers/chapter4/04_02.php
 
 const (
-	DefaultSampleRate     float64 = 44100
-	DefaultSampleBitDepth         = 16 // TODO not currently used for anything
+	DefaultSampleRate     float64 = 48000 // 44100
+	DefaultSampleBitDepth         = 16    // TODO not currently used for anything
 	DefaultBufferLen              = 256
 	DefaultAmpFac         float64 = 0.31622776601683794 // -10dB
 
@@ -137,7 +137,7 @@ func (bpm BPM) Hertz() float64 {
 // Sound represents a type capable of producing sound data.
 type Sound interface {
 	// TODO embed Sampler for Buffer?
-	//Sampler
+	// Sampler
 
 	// Channels returns the frame size in samples of the internal buffer.
 	Channels() int

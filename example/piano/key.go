@@ -6,7 +6,6 @@ import (
 
 	"dasa.cc/signal"
 	"dasa.cc/snd"
-	"dasa.cc/snd/al"
 )
 
 var (
@@ -29,7 +28,7 @@ var (
 	mastergain *snd.Gain
 
 	bpm     = snd.BPM(80)
-	loopdur = snd.Dtof(bpm.Dur(), snd.DefaultSampleRate) * 8 //nframes
+	loopdur = snd.Dtof(bpm.Dur(), snd.DefaultSampleRate) * 8 // nframes
 
 	sndbank    = []KeyFunc{NewPianoKey, NewWobbleKey, NewBeatsKey, NewReeseKey}
 	sndbankpos = 0
@@ -44,7 +43,8 @@ func makekeys() {
 		keys[i].Freeze()
 		keymix.Append(keys[i])
 	}
-	al.Notify()
+	// TODO al.Notify()
+	player.Notify()
 }
 
 type Key interface {
@@ -82,6 +82,7 @@ func (key *BeatsKey) Press() {
 	key.adsr.Sustain()
 	key.On()
 }
+
 func (key *BeatsKey) Release() {
 	key.adsr.Release()
 	key.OffIn(400 * ms)
@@ -106,6 +107,7 @@ func (key *WobbleKey) Press() {
 	key.adsr.Sustain()
 	key.On()
 }
+
 func (key *WobbleKey) Release() {
 	key.adsr.Release()
 	key.OffIn(400 * ms)
@@ -144,6 +146,7 @@ func (key *ReeseKey) Press() {
 	key.adsr.Sustain()
 	key.On()
 }
+
 func (key *ReeseKey) Release() {
 	key.adsr.Release()
 	key.OffIn(2 * ms)

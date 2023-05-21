@@ -91,7 +91,7 @@ func (wf *Waveform) Draw(ctx gl.Context, view, proj f32.Mat4) {
 		xpos += xstep
 	}
 
-	// ctx.LineWidth(2)
+	ctx.LineWidth(2)
 	wf.prg.Use(ctx)
 	wf.prg.Mat4(ctx, wf.uw, *world)
 	wf.prg.Mat4(ctx, wf.uv, view)

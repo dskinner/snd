@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime/pprof"
@@ -11,7 +12,7 @@ import (
 	"dasa.cc/material"
 	"dasa.cc/material/icon"
 	"dasa.cc/snd"
-	"dasa.cc/snd/al"
+	"github.com/gen2brain/malgo"
 
 	"golang.org/x/mobile/app"
 	"golang.org/x/mobile/event/lifecycle"
@@ -37,6 +38,53 @@ var (
 	lastpaint = time.Now()
 )
 
+var (
+	maclose func()
+	player  *snd.Player
+)
+
+func mastart(pl *snd.Player) func() {
+	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
+		fmt.Printf("LOG %v", message)
+	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Playback)
+	deviceConfig.Playback.Format = malgo.FormatF32
+	deviceConfig.Playback.Channels = pl.Channels()
+	deviceConfig.SampleRate = pl.SampleRate()
+	deviceConfig.Alsa.NoMMap = 1
+
+	// This is the function that's used for sending more data to the device for playback.
+	onSamples := func(pOutputSample, pInputSamples []byte, framecount uint32) {
+		io.ReadFull(pl, pOutputSample)
+	}
+
+	deviceCallbacks := malgo.DeviceCallbacks{
+		Data: onSamples,
+	}
+	device, err := malgo.InitDevice(ctx.Context, deviceConfig, deviceCallbacks)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	err = device.Start()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	return func() {
+		device.Uninit()
+		_ = ctx.Uninit()
+		ctx.Free()
+	}
+}
+
 func init() {
 	env.SetPalette(material.Palette{
 		Primary: material.BlueGrey500,
@@ -53,16 +101,16 @@ func onStart(ctx gl.Context) {
 	ctx.Enable(gl.CULL_FACE)
 	ctx.CullFace(gl.BACK)
 
-	if err := al.OpenDevice(buffers); err != nil {
-		log.Fatal(err)
-	}
+	// if err := al.OpenDevice(buffers); err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	env.Load(ctx)
 	env.LoadIcons(ctx)
 	env.LoadGlyphs(ctx)
 
 	toolbar = env.NewToolbar(ctx)
-	toolbar.Title.SetText("piano")
+	toolbar.Title.SetText("snd")
 	toolbar.Title.SetTextColor(material.White)
 	toolbar.Nav.SetIconColor(material.White)
 
@@ -126,7 +174,7 @@ func onStart(ctx gl.Context) {
 	btnNext = env.NewFloatingActionButton(ctx)
 	btnNext.Mini = true
 	btnNext.SetColor(env.Palette().Accent)
-	btnNext.SetIcon(icon.AvSkipNext)
+	btnNext.SetIcon(icon.NavigationChevronRight)
 	btnNext.OnPress = func() {
 		sndbankpos = (sndbankpos + 1) % len(sndbank)
 		go makekeys()
@@ -180,13 +228,13 @@ func onStart(ctx gl.Context) {
 	loopmix := snd.NewMixer(dlymix, loop)
 
 	master = snd.NewMixer(loopmix)
-	mastergain = snd.NewGain(snd.Decibel(-6).Amp(), master)
+	mastergain = snd.NewGain(snd.Decibel(-15).Amp(), master)
 	mixwf, err = NewWaveform(ctx, 2, mastergain)
 	mixwf.SetColor(material.BlueGrey700)
 	if err != nil {
 		log.Fatal(err)
 	}
-	pan := snd.NewPan(0, mixwf)
+	// pan := snd.NewPan(0, mixwf)
 
 	mtrosc := snd.NewOscil(sine, 440, nil)
 	mtrdmp := snd.NewDamp(bpm.Dur(), mtrosc)
@@ -194,8 +242,13 @@ func onStart(ctx gl.Context) {
 	metronome.Off()
 	master.Append(metronome)
 
-	al.Start(pan)
-	al.Notify()
+	// al.Start(pan)
+	// al.Notify()
+	if maclose != nil {
+		maclose()
+	}
+	player = snd.NewPlayer(mixwf)
+	maclose = mastart(player)
 }
 
 func onPaint(ctx gl.Context) {
@@ -284,27 +337,21 @@ func main() {
 	}
 
 	app.Main(func(a app.App) {
-		var logdbg *time.Ticker
+		// var logdbg *time.Ticker
 		var glctx gl.Context
 		for ev := range a.Events() {
 			switch ev := a.Filter(ev).(type) {
 			case lifecycle.Event:
 				switch ev.Crosses(lifecycle.StageVisible) {
 				case lifecycle.CrossOn:
-					logdbg = time.NewTicker(time.Second)
-					go func() {
-						for range logdbg.C {
-							log.Printf("fps=%-4v underruns=%-4v buflen=%-4v tickavg=%-12s drift=%s\n",
-								fps, al.Underruns(), al.BufLen(), al.TickAverge(), al.DriftApprox())
-						}
-					}()
 					glctx = ev.DrawContext.(gl.Context)
 					onStart(glctx)
 				case lifecycle.CrossOff:
 					glctx = nil
-					logdbg.Stop()
-					al.Stop()
-					al.CloseDevice()
+					if maclose != nil {
+						maclose()
+						maclose = nil
+					}
 				}
 			case touch.Event:
 				env.Touch(ev)

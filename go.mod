@@ -10,6 +10,7 @@ require (
 require (
 	dasa.cc/simplex v0.0.0-20180617055632-ae0aeef7c530 // indirect
 	github.com/ajstarks/svgo v0.0.0-20180226025133-644b8db467af // indirect
+	github.com/gen2brain/malgo v0.11.10 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/jung-kurt/gofpdf v1.0.0 // indirect
 	github.com/llgcode/draw2d v0.0.0-20180817132918-587a55234ca2 // indirect
