@@ -43,8 +43,6 @@ func (b *pbufc) write(xs []float64) {
 }
 
 func (b *pbufc) nwrites(atsize int) int {
-	// n := (len(b.xs) - b.w) / atsize
-	// fmt.Printf("telling [n=%v] for [atsize=%v]\n", n, atsize)
 	return (len(b.xs) - b.w) / atsize
 }
 

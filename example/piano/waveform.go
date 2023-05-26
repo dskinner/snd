@@ -14,12 +14,14 @@ type Waveform struct {
 
 	prg  glutil.Program
 	vbuf glutil.FloatBuffer
+	ibuf glutil.UintBuffer
 	uc   gl.Uniform
 	ap   gl.Attrib
 
 	uw, uv, up gl.Uniform
 
 	verts   []float32
+	indices []uint32
 	outs    [][]float64
 	samples []float64
 }
@@ -36,11 +38,18 @@ func NewWaveform(ctx gl.Context, n int, in snd.Sound) (*Waveform, error) {
 	wf.samples = make([]float64, len(in.Samples())*in.Channels()*n)
 	wf.verts = make([]float32, len(wf.samples)*2)
 
+	wf.indices = make([]uint32, len(wf.verts))
+	for i := range wf.indices {
+		wf.indices[i] = uint32((i + 1) / 2)
+	}
+	wf.indices[len(wf.indices)-1] = wf.indices[len(wf.indices)-2]
+
 	wf.prg.CreateAndLink(ctx,
 		glutil.ShaderAsset(gl.VERTEX_SHADER, "basic-vert.glsl"),
 		glutil.ShaderAsset(gl.FRAGMENT_SHADER, "basic-frag.glsl"))
 
 	wf.vbuf = glutil.NewFloatBuffer(ctx, wf.verts, gl.STREAM_DRAW)
+	wf.ibuf = glutil.NewUintBuffer(ctx, wf.indices, gl.STATIC_DRAW)
 	wf.uw = wf.prg.Uniform(ctx, "world")
 	wf.uv = wf.prg.Uniform(ctx, "view")
 	wf.up = wf.prg.Uniform(ctx, "proj")
@@ -100,6 +109,7 @@ func (wf *Waveform) Draw(ctx gl.Context, view, proj f32.Mat4) {
 	wf.prg.U4f(ctx, wf.uc, r, g, b, a)
 	wf.vbuf.Bind(ctx)
 	wf.vbuf.Update(ctx, wf.verts)
+	wf.ibuf.Bind(ctx)
 	wf.prg.Pointer(ctx, wf.ap, 2)
-	wf.vbuf.Draw(ctx, wf.prg, gl.LINES)
+	wf.ibuf.Draw(ctx, wf.prg, gl.LINES)
 }
