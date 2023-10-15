@@ -1,7 +1,11 @@
 package snd
 
 import (
+	"fmt"
+	"io"
 	"math"
+
+	"github.com/gen2brain/malgo"
 )
 
 type pbufc struct {
@@ -54,6 +58,8 @@ type Player struct {
 	inputs []*Input
 
 	line *pbufc
+
+	uninit func()
 }
 
 func NewPlayer(in Sound) *Player {
@@ -90,4 +96,52 @@ func (p *Player) Read(bin []byte) (int, error) {
 	p.line.readf32(bin)
 
 	return len(bin), nil
+}
+
+func (pl *Player) Start() error {
+	ctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(message string) {
+		fmt.Printf("LOG %v", message)
+	})
+	if err != nil {
+		return err
+	}
+
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Playback)
+	deviceConfig.Playback.Format = malgo.FormatF32
+	deviceConfig.Playback.Channels = pl.Channels()
+	deviceConfig.SampleRate = pl.SampleRate()
+	deviceConfig.Alsa.NoMMap = 1
+
+	// This is the function that's used for sending more data to the device for playback.
+	onSamples := func(pOutputSample, pInputSamples []byte, framecount uint32) {
+		io.ReadFull(pl, pOutputSample)
+	}
+
+	deviceCallbacks := malgo.DeviceCallbacks{
+		Data: onSamples,
+	}
+	device, err := malgo.InitDevice(ctx.Context, deviceConfig, deviceCallbacks)
+	if err != nil {
+		return err
+	}
+
+	err = device.Start()
+	if err != nil {
+		return err
+	}
+
+	pl.uninit = func() {
+		device.Uninit()
+		_ = ctx.Uninit()
+		ctx.Free()
+	}
+	return nil
+}
+
+func (pl *Player) Stop() {
+	var uninit func()
+	uninit, pl.uninit = pl.uninit, uninit
+	if uninit != nil {
+		uninit()
+	}
 }
